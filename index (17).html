@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UaiPede - Início</title>
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        // Este script pequeno fica aqui para evitar o "piscar" (FOUC) na tela
+        if (sessionStorage.getItem('splashShown') === 'true') {
+            document.documentElement.classList.add('skip-splash');
+        }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #f8f8f8; color: #3e3e3e; padding-bottom: 90px; overflow-x: hidden; padding-top: 70px; }
+
+        /* CORREÇÃO DO FLASH */
+        html:not(.skip-splash) .brand-header,
+        html:not(.skip-splash) .bottom-nav,
+        html:not(.skip-splash) #main-content,
+        html:not(.skip-splash) #install-banner {
+            display: none !important;
+        }
+
+        .skip-splash #splash-screen, 
+        .skip-splash #sponsor-wrapper { display: none !important; }
+
+        /* BANNER APP */
+        #install-banner { background: #111; color: #fff; padding: 12px 20px; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+        .btn-install { background: #ea1d2c; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        
+        /* AVISOS GLOBAIS */
+        #global-alerts-container { padding: 0 15px; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 10;}
+        .global-alert-card { background: #fff; border-radius: 12px; padding: 12px 15px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; overflow: hidden; border: 1px solid #eee; animation: slideDown 0.3s ease;}
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .global-alert-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+        .global-alert-card.promo::before { background: #ea1d2c; }
+        .global-alert-card.success::before { background: #00a14b; }
+        .global-alert-card.info::before { background: #0d6efd; }
+        .alert-text { font-size: 0.85rem; color: #111; font-weight: 700; flex: 1; padding: 0 10px; line-height: 1.4;}
+        .alert-close { background: #f4f5f7; border: none; font-size: 1rem; color: #777; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;}
+
+        /* SPLASH & SPONSOR */
+        #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease, visibility 0.5s ease; }
+        #splash-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        
+        .splash-logo-container { display: flex; align-items: center; gap: 12px; animation: pulseSplash 1.5s ease-in-out infinite alternate; }
+        @keyframes pulseSplash { 0% { transform: scale(0.95); } 100% { transform: scale(1.05); } }
+        .splash-swoosh { width: 60px; height: auto; transform: rotate(-10deg); }
+        .splash-text { font-size: 2.5rem; font-weight: 900; color: #ea1d2c; font-style: italic; letter-spacing: -1px; margin: 0; }
+        
+        #sponsor-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 99998; display: none; align-items: center; justify-content: center; }
+        #sponsor-content { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        #sponsor-content img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* EFEITOS DE TRANSIÇÃO DOS PATROCINADORES */
+        .effect-fade { opacity: 0; transition: opacity 0.6s ease; }
+        .effect-fade.active { opacity: 1; }
+        .effect-zoom { transform: scale(0.8); opacity: 0; transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .effect-zoom.active { transform: scale(1); opacity: 1; }
+        .effect-slide { transform: translateY(50px); opacity: 0; transition: all 0.6s ease-out; }
+        .effect-slide.active { transform: translateY(0); opacity: 1; }
+        .effect-slide-left { transform: translateX(100px); opacity: 0; transition: all 0.6s ease-out; }
+        .effect-slide-left.active { transform: translateX(0); opacity: 1; }
+
+        /* CABEÇALHO */
+        .brand-header { background: #fff; padding: 0 15px; height: 70px; position: fixed; top: 0; left: 0; width: 100%; border-bottom: 1px solid #f2f2f2; display: flex; justify-content: space-between; align-items: center; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.02);}
+        .brand-logo-container { display: flex; align-items: center; gap: 6px; }
+        .brand-logo-container svg { width: 28px; height: auto; transform: rotate(-10deg); }
+        .brand-logo-container span { font-size: 1.4rem; font-weight: 900; color: #ea1d2c; font-style: italic; letter-spacing: -0.5px; }
+        .city-selector-btn { display: flex; align-items: center; gap: 6px; background: #fff5f5; border: 1px solid #fbd5d5; padding: 8px 12px; border-radius: 50px; color: #ea1d2c; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: 0.2s; max-width: 160px;}
+        .city-name-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+
+        /* MODAL DE ESCOLHA DE CIDADE */
+        .city-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 999999; display: none; align-items: center; justify-content: center; }
+        .city-modal-overlay.active { display: flex; animation: fadeIn 0.3s ease; }
+        .city-modal-content { background: #fff; width: 90%; max-width: 400px; border-radius: 24px; padding: 30px 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; position: relative; max-height: 90vh; display: flex; flex-direction: column;}
+        .city-modal-close { position: absolute; top: 15px; right: 15px; background: #f4f5f7; border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 1.2rem; display: none; align-items: center; justify-content: center; cursor: pointer; color: #555;}
+        
+        .city-modal-icon { width: 65px; height: 65px; background: #fff5f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #ea1d2c; margin: 0 auto 15px; }
+        .city-modal-title { font-size: 1.4rem; font-weight: 900; color: #111; margin-bottom: 8px; }
+        .city-modal-desc { font-size: 0.95rem; color: #777; margin-bottom: 25px; line-height: 1.4; }
+        
+        .city-search-box { position: relative; margin-bottom: 15px; width: 100%; }
+        .city-search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999; }
+        .city-search-box input { width: 100%; padding: 14px 12px 14px 40px; border: 1px solid #eee; border-radius: 12px; font-size: 0.95rem; outline: none; background: #fdfdfd; transition: 0.2s; font-family: 'Roboto', sans-serif;}
+        .city-search-box input:focus { border-color: #ea1d2c; background: #fff; }
+
+        .city-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; flex: 1; }
+        .city-list::-webkit-scrollbar { width: 4px; }
+        .city-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+        
+        .city-item-btn { width: 100%; background: #fff; border: 1px solid #f2f2f2; padding: 18px 16px; border-radius: 12px; font-size: 1.05rem; font-weight: 700; color: #111; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: 0.2s; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+        .city-item-btn:active { background: #fff5f5; border-color: #ea1d2c; transform: scale(0.98); }
+        .city-item-btn svg { color: #ccc; transition: color 0.2s;}
+        .city-item-btn:active svg { color: #ea1d2c; }
+
+        /* BANNERS E CATEGORIAS */
+        .banner-carousel-wrapper { background: #f8f8f8; padding: 15px 15px 0; display: none; }
+        .banner-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+        .banner-track::-webkit-scrollbar { display: none; }
+        .banner-slide { flex: 0 0 100%; height: 150px; border-radius: 12px; object-fit: cover; scroll-snap-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+
+        /* CATEGORIAS */
+        .button-scroll-container { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 15px; background: #f8f8f8; scrollbar-width: none; -webkit-overflow-scrolling: touch; width: 100%; }
+        .button-scroll-container::-webkit-scrollbar { display: none; }
+        .button-item { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; padding: 12px 5px; border-radius: 16px; text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.3s ease; flex: 0 0 auto; width: 85px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .filter-icon { width: 32px; height: 32px; margin-bottom: 8px; color: #ea1d2c; transition: color 0.3s ease; }
+        .button-item span { font-size: 0.75rem; color: #717171; font-weight: 600; line-height: 1.1; transition: color 0.3s ease; white-space: nowrap;}
+        .button-item.active { background-color: #ea1d2c; border-color: #ea1d2c; box-shadow: 0 4px 10px rgba(234, 29, 44, 0.25); }
+        .button-item.active span, .button-item.active .filter-icon { color: #fff; } 
+        
+        /* CHIPS INTELIGENTES DE FILTROS RÁPIDOS */
+        .quick-filters-container { display: flex; gap: 10px; overflow-x: auto; padding: 0 15px 15px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .quick-filters-container::-webkit-scrollbar { display: none; }
+        .chip-btn { background: #fff; border: 1px solid #ddd; padding: 8px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; color: #555; white-space: nowrap; flex-shrink: 0; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
+        .chip-btn svg { color: #ea1d2c; }
+        .chip-btn.active { background: #ea1d2c; border-color: #ea1d2c; color: #fff; }
+        .chip-btn.active svg { color: #fff; fill: #fff; }
+        .chip-fav-icon { fill: none; stroke: currentColor; }
+        .chip-btn.active .chip-fav-icon { fill: #fff; stroke: #fff; }
+
+        /* LOJAS EM DESTAQUE */
+        .featured-section { display: none; padding: 0 0 20px 0; }
+        .featured-track { display: flex; gap: 15px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 15px 10px; -webkit-overflow-scrolling: touch; }
+        .featured-track::-webkit-scrollbar { display: none; }
+        
+        .featured-card { 
+            flex: 0 0 140px; 
+            background: #fff; 
+            border: 1px solid #f0f0f0; 
+            border-radius: 16px; 
+            text-align: center; 
+            scroll-snap-align: start; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06); 
+            text-decoration: none; 
+            color: inherit; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            position: relative;
+            overflow: hidden;
+            padding-bottom: 15px;
+            transition: transform 0.2s ease;
+        }
+        .featured-card:active { transform: scale(0.96); }
+        .featured-card-header { 
+            width: 100%; 
+            height: 50px; 
+            background: linear-gradient(135deg, #ea1d2c, #ff4b58); 
+            margin-bottom: 30px; 
+        }
+        .featured-logo { 
+            width: 65px; 
+            height: 65px; 
+            border-radius: 50%; 
+            border: 3px solid #fff; 
+            object-fit: cover; 
+            position: absolute; 
+            top: 15px; 
+            background: #fff; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .featured-name { 
+            font-size: 0.9rem; 
+            font-weight: 800; 
+            color: #111; 
+            width: 90%; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            margin-bottom: 6px; 
+            padding: 0 5px;
+        }
+        .featured-badge { 
+            font-size: 0.65rem; 
+            color: #ea1d2c; 
+            font-weight: 900; 
+            background: #fff5f5; 
+            padding: 4px 10px; 
+            border-radius: 12px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .section-title { padding: 5px 15px 15px; font-size: 1.15rem; font-weight: 900; color: #111; display: flex; align-items: center; gap: 8px;}
+
+        /* LISTA DE LOJAS GERAL */
+        .store-list { padding: 0 15px; }
+        .store-card { display: flex; align-items: center; padding: 15px; margin-bottom: 12px; border-radius: 12px; cursor: pointer; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border: 1px solid #f2f2f2; transition: 0.2s; text-decoration: none; position: relative;}
+        .store-card:active { transform: scale(0.98); background-color: #f9f9f9; }
+        .store-card.closed { opacity: 0.55; filter: grayscale(100%); }
+        .store-card.closed:active { transform: none; background-color: #fff; }
+        .store-logo { width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; border: 1px solid #eee; object-fit: cover; flex-shrink: 0;}
+        .store-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; padding-right: 25px;}
+        
+        .store-name { font-size: 1.1rem; font-weight: 900; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;}
+        
+        .store-details { font-size: 0.8rem; color: #717171; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-weight: 500;}
+        .store-details .dot { color: #ccc; font-size: 0.6rem; }
+
+        /* BOTÃO CORAÇÃO (FAVORITOS) */
+        .heart-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 1.2rem; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; transition: 0.2s; }
+        .heart-btn svg { width: 22px; height: 22px; stroke: #ccc; fill: none; transition: 0.2s; stroke-width: 2;}
+        .heart-btn.favorited svg { stroke: #ea1d2c; fill: #ea1d2c; }
+        .heart-btn:active { transform: scale(0.8); }
+
+        .store-delivery-info { font-size: 0.8rem; color: #333; margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+        .coupon-badge-btn { display: inline-flex; align-items: center; background: #fff; border: 1.5px solid; border-radius: 20px; padding: 3px 8px; font-size: 0.65rem; font-weight: 800; text-decoration: none; margin-bottom: 2px;}
+
+        /* MODAL DE BUSCA RÁPIDA */
+        .search-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f8f8; z-index: 999999; display: none; flex-direction: column; animation: slideUpSearch 0.3s ease;}
+        @keyframes slideUpSearch { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        .sm-header { background: #fff; padding: 15px 15px 15px 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #eee; padding-top: calc(15px + env(safe-area-inset-top)); box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+        .sm-back { background: none; border: none; color: #ea1d2c; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center;}
+        .sm-input-box { flex: 1; position: relative; }
+        .sm-input-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999; }
+        .sm-input-box input { width: 100%; padding: 12px 12px 12px 38px; border: none; background: #f0f0f0; border-radius: 8px; font-size: 0.95rem; outline: none; font-weight: 500;}
+        .sm-input-box input:focus { background: #e8e8e8; }
+        
+        .sm-body { flex: 1; overflow-y: auto; padding: 15px; }
+
+        /* MENU INFERIOR */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; display: flex; justify-content: space-around; padding: 12px 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #eee; z-index: 9000; box-shadow: 0 -2px 10px rgba(0,0,0,0.02); }
+        .nav-link { text-align: center; color: #717171; font-size: 0.7rem; text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: 0.2s; background: none; border: none; cursor: pointer; width: 25%;}
+        .nav-icon-img { width: 24px; height: 24px; filter: invert(40%); }
+        .nav-link.active { color: #ea1d2c; font-weight: bold; }
+        .nav-link.active .nav-icon-img { filter: invert(20%) sepia(91%) saturate(5437%) hue-rotate(352deg) brightness(94%) contrast(98%); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #777; }
+        .empty-state svg { color: #ccc; margin-bottom: 15px; }
+        .empty-state h3 { color: #111; font-size: 1.1rem; margin-bottom: 5px; font-weight: 800;}
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen">
+        <div class="splash-logo-container" id="splash-default-logo">
+            <svg class="splash-swoosh" viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="8" stroke-linecap="round"/>
+            </svg>
+            <h1 class="splash-text">UaiPede</h1>
+        </div>
+        <video id="splash-video" style="display:none; width:100%; height:100%; object-fit:cover;" autoplay muted playsinline></video>
+    </div>
+
+    <div id="sponsor-wrapper"><div id="sponsor-content"></div></div>
+
+    <div id="install-banner" style="display:none;">
+        <div><strong>UaiPede</strong><br><span style="color:#aaa; font-size:0.8rem;">Instale o app para pedir mais rápido!</span></div>
+        <button class="btn-install" id="btn-install-app">Instalar</button>
+    </div>
+
+    <header class="brand-header">
+        <div class="brand-logo-container">
+            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="10" stroke-linecap="round"/>
+            </svg>
+            <span style="font-size: 1.4rem; font-weight: 900; color: #ea1d2c; font-style: italic; letter-spacing: -0.5px;">UaiPede</span>
+        </div>
+        
+        <button class="city-selector-btn" onclick="window.openCityModal(true)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <span class="city-name-label" id="header-city-name">Carregando...</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </header>
+
+    <main id="main-content" style="display: none;">
+        
+        <div id="global-alerts-container"></div>
+        
+        <div class="banner-carousel-wrapper" id="banner-wrapper"><div class="banner-track" id="banner-track"></div></div>
+
+        <section class="button-scroll-container" id="category-filters">
+            <div class="button-item active" onclick="window.filterCategory('Todos', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z"/></svg><span>Todos</span></div>
+            <div class="button-item" onclick="window.filterCategory('Restaurantes', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg><span>Restaurantes</span></div>
+            <div class="button-item" onclick="window.filterCategory('Lanches', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M21.99 10.93c-.15-2.92-2.31-5.38-5.18-5.83C15.22 4.41 13.68 4 12 4s-3.22.41-4.81 1.1c-2.87.45-5.03 2.91-5.18 5.83H2v2h2v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4h2v-2h-.01zM18 17H6v-4h12v4z"/></svg><span>Lanches</span></div>
+            <div class="button-item" onclick="window.filterCategory('Padaria', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg><span>Padaria</span></div>
+            <div class="button-item" onclick="window.filterCategory('Pizzaria', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M12 2C8.43 2 5.23 3.54 3.01 6L12 22l8.99-16C18.77 3.54 15.57 2 12 2zM7 7c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm5 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg><span>Pizzaria</span></div>
+            <div class="button-item" onclick="window.filterCategory('Bares', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M21 5V3H3v2l8 9v5H6v2h12v-2h-5v-5l8-9zM7.43 7L5.66 5h12.69l-1.78 2H7.43z"/></svg><span>Bares</span></div>
+            <div class="button-item" onclick="window.filterCategory('Sorveterias', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M12 2C8.69 2 6 4.69 6 8c0 3.08 2.31 5.64 5.25 5.95V22h1.5v-8.05C15.69 13.64 18 11.08 18 8c0-3.31-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg><span>Sorveterias</span></div>
+            <div class="button-item" onclick="window.filterCategory('Mercados', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg><span>Mercados</span></div>
+            <div class="button-item" onclick="window.filterCategory('Farmácias', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg><span>Farmácias</span></div>
+            <div class="button-item" onclick="window.filterCategory('Loja de Roupas', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M21.99 8c0-.72-.37-1.35-.94-1.7L12 1 2.95 6.3C2.38 6.65 2 7.28 2 8v2h2v11h16V10h2V8zM12 3.19l7 3.91V8h-2v11H7V8H5V7.1l7-3.91z"/></svg><span>Moda</span></div>
+            <div class="button-item" onclick="window.filterCategory('Açougue', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M20.5 3.5l-6 6c-.39-.39-1.02-.39-1.41 0L3.5 19.09l1.41 1.41 9.59-9.59c.39.39 1.02.39 1.41 0l6-6V3.5h-1.41z"/></svg><span>Açougue</span></div>
+            <div class="button-item" onclick="window.filterCategory('Utilidades', this)"><svg viewBox="0 0 24 24" fill="currentColor" class="filter-icon"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg><span>Utilidades</span></div>
+        </section>
+
+        <div class="quick-filters-container">
+            <button class="chip-btn" onclick="window.toggleQuickFilter('freeShipping', this)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.09a2 2 0 0 0 1.51.67l2.88 3.33a2 2 0 0 0 1.51.67H21a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><circle cx="8.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                Entrega Grátis
+            </button>
+            <button class="chip-btn" onclick="window.toggleQuickFilter('hasCoupon', this)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                Com Cupom
+            </button>
+            <button class="chip-btn" onclick="window.toggleQuickFilter('openNow', this)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Abertos Agora
+            </button>
+            <button class="chip-btn" onclick="window.toggleQuickFilter('favorites', this)">
+                <svg class="chip-fav-icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                Favoritas
+            </button>
+        </div>
+
+        <section class="featured-section" id="featured-section">
+            <h2 class="section-title">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#ea1d2c" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                Lojas em Destaque
+            </h2>
+            <div class="featured-track" id="featured-track-container"></div>
+        </section>
+
+        <h2 class="section-title" id="list-title">Lojas Disponíveis</h2>
+        <div class="store-list" id="store-list-container">
+            <div style="text-align:center; padding:30px; color:#aaa; font-weight:bold;">Buscando lojas perto de você...</div>
+        </div>
+    </main>
+
+    <div id="search-modal" class="search-modal">
+        <div class="sm-header">
+            <button class="sm-back" onclick="window.closeSearchModal()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div class="sm-input-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="sm-search-input" placeholder="Buscar loja ou categoria..." oninput="window.filterSearchModal()">
+            </div>
+        </div>
+        <div class="sm-body">
+            <h3 style="font-size:1rem; font-weight:800; color:#111; margin-bottom:15px; display:none;" id="sm-results-title">Resultados</h3>
+            <div id="sm-results-container" class="store-list" style="padding:0;">
+                <div style="text-align:center; padding:50px 20px; color:#999;">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ddd" stroke-width="2" style="margin-bottom:10px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <p style="font-size:0.9rem;">Encontre o que deseja num piscar de olhos.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="index.html" class="nav-link active"><img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" class="nav-icon-img" alt="Início"><span>Início</span></a>
+        
+        <button class="nav-link" onclick="window.openSearchModal()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon-img" style="filter: none; stroke: #717171; margin-bottom: 2px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>Busca</span>
+        </button>
+
+        <a href="pedidos.html" class="nav-link"><img src="https://cdn-icons-png.flaticon.com/512/1150/1150592.png" class="nav-icon-img" alt="Pedidos"><span>Pedidos</span></a>
+        <a href="perfil.html" class="nav-link"><img src="https://cdn-icons-png.flaticon.com/512/1077/1077063.png" class="nav-icon-img" alt="Perfil"><span>Perfil</span></a>
+    </nav>
+
+    <div id="city-modal" class="city-modal-overlay">
+        <div class="city-modal-content">
+            <button class="city-modal-close" id="btn-close-city-modal" onclick="window.closeCityModal()">✕</button>
+            <div class="city-modal-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            </div>
+            <h2 class="city-modal-title">Onde você está?</h2>
+            <p class="city-modal-desc">Selecione sua cidade para ver os melhores<br>estabelecimentos perto de você.</p>
+            
+            <div class="city-search-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="city-search-input" placeholder="Buscar cidade..." oninput="window.filterCityList()">
+            </div>
+
+            <div class="city-list" id="modal-city-list">
+                <p style="color:#aaa; font-size:0.9rem;">Buscando cidades...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="index.js"></script>
+</body>
+</html>
