@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil - UaiPede</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ea1d2c">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="UaiPede">
+    <link rel="apple-touch-icon" href="icone-192x192.png">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background-color: #f8f8f8; color: #3e3e3e; padding-bottom: 90px; }
+
+        /* HEADER */
+        header { background: #fff; padding: 20px; text-align: center; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        header h1 { font-size: 1.2rem; font-weight: 700; color: #111; }
+
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+
+        /* ESTADO VAZIO (NÃO LOGADO) */
+        .empty-state { text-align: center; padding: 60px 20px; display: none; }
+        .empty-state span { font-size: 3rem; display: block; margin-bottom: 15px; }
+        .empty-state h3 { color: #111; margin-bottom: 10px; font-size: 1.2rem; }
+        .empty-state p { color: #717171; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.4; }
+        
+        /* BOTÕES GERAIS */
+        .btn-primary { background: #ea1d2c; color: #fff; border: none; padding: 14px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; width: 100%; text-align: center; display: inline-block; text-decoration: none; cursor: pointer; transition: 0.2s; }
+        .btn-primary:active { background: #c81824; transform: scale(0.98); }
+        
+        .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; padding: 14px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; width: 100%; text-align: left; display: flex; justify-content: flex-start; align-items: center; gap: 10px; text-decoration: none; cursor: pointer; transition: 0.2s; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .btn-secondary:active { background: #f9f9f9; transform: scale(0.98); }
+
+        .btn-danger { background: #fff0f0; color: #ea1d2c; border: 1px solid #fbd5d5; padding: 14px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; width: 100%; text-align: center; display: inline-block; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        .btn-danger:active { background: #fbd5d5; transform: scale(0.98); }
+
+        /* CARDS DO PERFIL */
+        .profile-card { background: #fff; padding: 25px 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #f2f2f2; text-align: center; }
+        .avatar-circle { width: 70px; height: 70px; background: #ea1d2c; color: #fff; font-size: 2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 15px; }
+        .profile-card h2 { color: #111; font-size: 1.3rem; margin-bottom: 5px; }
+        .profile-card p { color: #777; font-size: 0.9rem; }
+        
+        .address-card { background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #f2f2f2; }
+        .address-card h3 { font-size: 1.1rem; color: #111; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;}
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f9f9f9; transition: 0.2s; color: #333; font-family: 'Roboto', sans-serif;}
+        .form-group input:focus, .form-group select:focus { border-color: #ea1d2c; background: #fff; }
+        .row { display: flex; gap: 10px; }
+        .row .form-group { flex: 1; }
+
+        /* MENU INFERIOR */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #eee; z-index: 150; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 10px rgba(0,0,0,0.02);}
+        .nav-link { text-align: center; color: #717171; font-size: 0.7rem; text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: 0.2s; }
+        .nav-icon-img { width: 24px; height: 24px; filter: invert(40%); }
+        .nav-link.active { color: #ea1d2c; font-weight: bold; }
+        .nav-link.active .nav-icon-img { filter: invert(20%) sepia(91%) saturate(5437%) hue-rotate(352deg) brightness(94%) contrast(98%); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Meu Perfil</h1>
+    </header>
+
+    <main class="container">
+        <div id="unlogged-state" class="empty-state">
+            <span>👤</span>
+            <h3>Você não está logado</h3>
+            <p>Faça login ou crie uma conta para salvar seus endereços e ver seus pedidos.</p>
+            <a href="login.html" class="btn-primary">Fazer Login</a>
+        </div>
+
+        <div id="logged-state" style="display: none;">
+            
+            <div class="profile-card">
+                <div class="avatar-circle" id="user-avatar">?</div>
+                <h2 id="user-name">Carregando...</h2>
+                <p id="user-email">...</p>
+            </div>
+
+            <div class="address-card">
+                <h3>📍 Meu Endereço Padrão</h3>
+                <p style="font-size:0.8rem; color:#777; margin-bottom: 15px;">Este endereço será preenchido automaticamente quando for finalizar um pedido.</p>
+                
+                <div class="form-group">
+                    <input type="text" id="p-rua" placeholder="Rua / Avenida">
+                </div>
+                <div class="row">
+                    <div class="form-group" style="flex: 0.4;">
+                        <input type="text" id="p-num" placeholder="Número">
+                    </div>
+                    <div class="form-group" style="flex: 0.6;">
+                        <input type="text" id="p-bairro" placeholder="Bairro">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <select id="p-cidade">
+                        <option value="">Carregando cidades...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <input type="text" id="p-comp" placeholder="Complemento (Opcional)">
+                </div>
+                
+                <button class="btn-primary" id="btn-save-addr" onclick="window.saveAddress()">Salvar Endereço</button>
+            </div>
+
+            <button class="btn-secondary" onclick="window.openSettings()">
+                <span style="font-size: 1.2rem;">⚙️</span> Configurações do Perfil
+            </button>
+
+            <a href="privacidade.html" class="btn-secondary">
+                <span style="font-size: 1.2rem;">📄</span> Política de Privacidade
+            </a>
+
+            <button class="btn-danger" onclick="window.logout()">Sair da Conta</button>
+
+        </div>
+
+        <div id="settings-state" style="display: none;">
+            <div class="address-card">
+                <h3>⚙️ Editar Perfil</h3>
+                <p style="font-size:0.8rem; color:#777; margin-bottom: 15px;">Atualize seus dados pessoais e de acesso abaixo.</p>
+
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="cfg-name" placeholder="Seu nome">
+                </div>
+                
+                <div class="form-group">
+                    <label>Telefone / WhatsApp</label>
+                    <input type="tel" id="cfg-phone" placeholder="(00) 00000-0000">
+                </div>
+                
+                <div class="form-group">
+                    <label>E-mail (Usado no Login)</label>
+                    <input type="email" id="cfg-email" placeholder="seu@email.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Nova Senha</label>
+                    <input type="password" id="cfg-pass" placeholder="Deixe em branco para não alterar">
+                </div>
+
+                <button class="btn-primary" id="btn-save-cfg" onclick="window.saveProfileSettings()">Salvar Alterações</button>
+                <button class="btn-secondary" style="margin-top: 15px; justify-content: center;" onclick="window.closeSettings()">Cancelar e Voltar</button>
+                
+                <button class="btn-danger" style="margin-top: 30px; border-color: #ea1d2c;" onclick="window.deleteAccount()">Excluir Minha Conta Definitivamente</button>
+            </div>
+        </div>
+
+    </main>
+
+    <nav class="bottom-nav">
+        <a href="index.html" class="nav-link"><img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" class="nav-icon-img" alt="Início"><span>Início</span></a>
+        <a href="pedidos.html" class="nav-link"><img src="https://cdn-icons-png.flaticon.com/512/1150/1150592.png" class="nav-icon-img" alt="Pedidos"><span>Pedidos</span></a>
+        <a href="perfil.html" class="nav-link active"><img src="https://cdn-icons-png.flaticon.com/512/1077/1077063.png" class="nav-icon-img" alt="Perfil"><span>Perfil</span></a>
+    </nav>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // SUA CONFIGURAÇÃO OFICIAL
+        const firebaseConfig = {
+            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
+            authDomain: "dores-delivery.firebaseapp.com",
+            projectId: "dores-delivery",
+            storageBucket: "dores-delivery.firebasestorage.app",
+            messagingSenderId: "1029498697239",
+            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Verifica Sessão do Usuário
+        const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
+        const isLogged = !!loggedCustomer || localStorage.getItem('isLogged') === 'true'; 
+        let userName = loggedCustomer ? loggedCustomer.name : localStorage.getItem('userName');
+        let userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
+
+        let userDocId = null;
+        let fullUserData = null; 
+
+        // 🟢 CARREGAR CIDADES NO DROPDOWN 🟢
+        async function loadCities(userSavedCity) {
+            const citySelect = document.getElementById('p-cidade');
+            try {
+                const citiesSnap = await getDocs(collection(db, "cities"));
+                let cities = [];
+                citiesSnap.forEach(doc => { cities.push(doc.data()); });
+                cities.sort((a, b) => a.name.localeCompare(b.name));
+
+                let html = '<option value="">Selecione sua cidade...</option>';
+                cities.forEach(c => {
+                    const cityString = `${c.name} - ${c.state}`;
+                    html += `<option value="${cityString}">${cityString}</option>`;
+                });
+                citySelect.innerHTML = html;
+
+                // Se o usuário já tiver uma cidade salva, seleciona ela automaticamente
+                if (userSavedCity) {
+                    citySelect.value = userSavedCity;
+                }
+            } catch (error) {
+                console.error("Erro ao carregar cidades:", error);
+                citySelect.innerHTML = '<option value="">Erro ao carregar cidades</option>';
+            }
+        }
+
+        window.onload = async () => {
+            if (!isLogged) {
+                document.getElementById('unlogged-state').style.display = 'block';
+                document.getElementById('logged-state').style.display = 'none';
+            } else {
+                document.getElementById('unlogged-state').style.display = 'none';
+                document.getElementById('logged-state').style.display = 'block';
+
+                document.getElementById('user-name').innerText = userName || 'Cliente';
+                document.getElementById('user-email').innerText = userEmail || '';
+                if(userName) document.getElementById('user-avatar').innerText = userName.charAt(0).toUpperCase();
+
+                // Busca todos os dados do banco de dados para mostrar na tela
+                try {
+                    const q = query(collection(db, "customers"), where("email", "==", userEmail));
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (!querySnapshot.empty) {
+                        querySnapshot.forEach((documento) => {
+                            userDocId = documento.id; 
+                            fullUserData = documento.data(); 
+                            
+                            // Tenta pegar a cidade da raiz do cadastro novo, se não achar tenta do endereço antigo
+                            let savedCity = fullUserData.city || '';
+                            
+                            if(fullUserData.address) {
+                                document.getElementById('p-rua').value = fullUserData.address.rua || '';
+                                document.getElementById('p-num').value = fullUserData.address.num || '';
+                                document.getElementById('p-bairro').value = fullUserData.address.bairro || '';
+                                document.getElementById('p-comp').value = fullUserData.address.comp || '';
+                                
+                                // Puxa do endereço antigo se a raiz estiver vazia
+                                if(!savedCity && fullUserData.address.cidade) {
+                                    savedCity = fullUserData.address.cidade;
+                                }
+                            }
+                            
+                            // Carrega a lista de cidades e já preenche com a cidade atual do usuário
+                            loadCities(savedCity);
+                        });
+                    }
+                } catch(e) {
+                    console.error("Erro ao buscar dados do perfil:", e);
+                }
+            }
+        };
+
+        // Função para salvar o endereço no Firebase
+        window.saveAddress = async () => {
+            const rua = document.getElementById('p-rua').value.trim();
+            const num = document.getElementById('p-num').value.trim();
+            const bairro = document.getElementById('p-bairro').value.trim();
+            const cidade = document.getElementById('p-cidade').value; // Pega do dropdown
+            const comp = document.getElementById('p-comp').value.trim();
+
+            if (!rua || !num || !bairro || !cidade) {
+                alert("Por favor, preencha Rua, Número, Bairro e Cidade.");
+                return;
+            }
+
+            if (!userDocId) {
+                alert("Erro ao localizar seu cadastro. Tente fazer login novamente.");
+                return;
+            }
+
+            const btn = document.getElementById('btn-save-addr');
+            btn.innerText = "Salvando...";
+            btn.disabled = true;
+
+            try {
+                await updateDoc(doc(db, "customers", userDocId), {
+                    city: cidade, // Mantém a cidade sincronizada com o painel inicial
+                    address: { rua, num, bairro, cidade, comp }
+                });
+                
+                // Atualiza o localStorage para refletir a nova cidade imediatamente na tela principal
+                localStorage.setItem('userCity', cidade);
+                
+                alert("Endereço salvo com sucesso! Ele será usado automaticamente em suas próximas compras.");
+            } catch(e) {
+                console.error("Erro ao salvar endereço", e);
+                alert("Ocorreu um erro ao salvar.");
+            } finally {
+                btn.innerText = "Salvar Endereço";
+                btn.disabled = false;
+            }
+        };
+
+        // ==========================================
+        // ⚙️ LÓGICA DE EDIÇÃO DE DADOS PESSOAIS ⚙️
+        // ==========================================
+        window.openSettings = () => {
+            if(!fullUserData) {
+                alert("Aguarde um momento enquanto carregamos seus dados.");
+                return;
+            }
+            
+            document.getElementById('logged-state').style.display = 'none';
+            document.getElementById('settings-state').style.display = 'block';
+
+            document.getElementById('cfg-name').value = fullUserData.name || userName || '';
+            document.getElementById('cfg-phone').value = fullUserData.phone || '';
+            document.getElementById('cfg-email').value = fullUserData.email || userEmail || '';
+            document.getElementById('cfg-pass').value = ''; 
+        };
+
+        window.closeSettings = () => {
+            document.getElementById('settings-state').style.display = 'none';
+            document.getElementById('logged-state').style.display = 'block';
+        };
+
+        window.saveProfileSettings = async () => {
+            const newName = document.getElementById('cfg-name').value.trim();
+            const newPhone = document.getElementById('cfg-phone').value.trim();
+            const newEmail = document.getElementById('cfg-email').value.trim();
+            const newPass = document.getElementById('cfg-pass').value.trim();
+
+            if (!newName || !newEmail) {
+                alert("Nome e E-mail são campos obrigatórios!");
+                return;
+            }
+
+            if (!userDocId) return;
+
+            const btn = document.getElementById('btn-save-cfg');
+            btn.innerText = "Salvando...";
+            btn.disabled = true;
+
+            try {
+                let dataToUpdate = {
+                    name: newName,
+                    phone: newPhone,
+                    email: newEmail
+                };
+                
+                if (newPass !== '') {
+                    dataToUpdate.password = newPass; 
+                }
+
+                await updateDoc(doc(db, "customers", userDocId), dataToUpdate);
+
+                let storedCust = JSON.parse(localStorage.getItem('loggedCustomer')) || {};
+                storedCust.name = newName;
+                storedCust.email = newEmail;
+                
+                localStorage.setItem('loggedCustomer', JSON.stringify(storedCust));
+                localStorage.setItem('userName', newName);
+                localStorage.setItem('userEmail', newEmail);
+
+                userName = newName;
+                userEmail = newEmail;
+                fullUserData.name = newName;
+                fullUserData.phone = newPhone;
+                fullUserData.email = newEmail;
+
+                document.getElementById('user-name').innerText = newName;
+                document.getElementById('user-email').innerText = newEmail;
+                document.getElementById('user-avatar').innerText = newName.charAt(0).toUpperCase();
+
+                alert("Dados do perfil atualizados com sucesso!");
+                window.closeSettings();
+
+            } catch (e) {
+                console.error(e);
+                alert("Erro ao atualizar o perfil. Tente novamente.");
+            } finally {
+                btn.innerText = "Salvar Alterações";
+                btn.disabled = false;
+            }
+        };
+
+        // EXCLUIR CONTA
+        window.deleteAccount = async () => {
+            if (!userDocId) {
+                alert("Erro ao localizar seu cadastro para exclusão.");
+                return;
+            }
+
+            const confirmAction = confirm("⚠️ ATENÇÃO: Tem certeza absoluta que deseja excluir sua conta? Todos os seus dados, endereços salvos e histórico serão apagados permanentemente. Esta ação não pode ser desfeita.");
+
+            if (confirmAction) {
+                try {
+                    await deleteDoc(doc(db, "customers", userDocId));
+                    alert("Sua conta foi excluída com sucesso.");
+                    
+                    localStorage.removeItem('loggedCustomer');
+                    localStorage.removeItem('isLogged');
+                    localStorage.removeItem('userName');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('userCity');
+                    
+                    window.location.href = 'index.html';
+                } catch (error) {
+                    console.error("Erro ao excluir conta:", error);
+                    alert("Ocorreu um erro ao tentar excluir sua conta. Tente novamente mais tarde.");
+                }
+            }
+        };
+
+        window.logout = () => {
+            if (confirm("Deseja realmente sair da sua conta?")) {
+                localStorage.removeItem('loggedCustomer');
+                localStorage.removeItem('isLogged');
+                localStorage.removeItem('userName');
+                localStorage.removeItem('userEmail');
+                window.location.href = 'index.html';
+            }
+        };
+
+        // ==========================================
+        // 🚀 REGISTRO DO SERVICE WORKER (PWA) 🚀
+        // ==========================================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registrado com sucesso:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Falha ao registrar o Service Worker:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

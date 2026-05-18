@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UaiPede Email - Solicitações</title>
+    
+    <script>
+        if (sessionStorage.getItem('adminAuth') !== 'true') {
+            window.location.href = 'loginadm.html';
+        }
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --uai-red: #ea1d2c; --uai-dark: #111111; --uai-bg: #f4f6f8; --uai-white: #ffffff; --uai-gray: #717171; --uai-light-gray: #e9ecef; --uai-border: #dee2e6; --hover-bg: #fdf2f2; --radius: 8px; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--uai-bg); color: var(--uai-dark); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { background-color: var(--uai-white); padding: 15px 25px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--uai-border); z-index: 10; }
+        .logo-container { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+        .logo-svg { width: 35px; height: auto; transform: rotate(-5deg); }
+        .logo-text { font-size: 1.5rem; font-weight: 900; font-style: italic; color: var(--uai-red); letter-spacing: -1px; }
+        .app-body { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 250px; background: var(--uai-white); border-right: 1px solid var(--uai-border); display: flex; flex-direction: column; padding: 20px 0; flex-shrink: 0; }
+        .menu-item { padding: 12px 25px; display: flex; align-items: center; gap: 12px; color: var(--uai-dark); font-weight: 500; cursor: pointer; transition: 0.2s; }
+        .menu-item:hover, .menu-item.active { background-color: var(--hover-bg); color: var(--uai-red); border-right: 4px solid var(--uai-red); }
+        .menu-icon { width: 20px; height: 20px; stroke: currentColor; }
+        .sidebar-title { font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--uai-gray); margin: 20px 25px 10px; letter-spacing: 0.5px; }
+        .inbox-list { width: 350px; background: var(--uai-white); border-right: 1px solid var(--uai-border); display: flex; flex-direction: column; overflow-y: auto; }
+        .inbox-header { padding: 20px; border-bottom: 1px solid var(--uai-border); background: var(--uai-white); position: sticky; top: 0; z-index: 5; }
+        .inbox-header h2 { margin: 0; font-size: 1.2rem; }
+        .request-item { padding: 20px; border-bottom: 1px solid var(--uai-light-gray); cursor: pointer; transition: 0.2s; }
+        .request-item:hover { background-color: #f8f9fa; }
+        .request-item.active { background-color: var(--hover-bg); border-left: 4px solid var(--uai-red); padding-left: 16px; }
+        .request-item.unread .req-title { font-weight: 700; color: var(--uai-dark); }
+        .req-title { font-size: 1rem; font-weight: 500; margin-bottom: 5px; color: #333; }
+        .req-city { font-size: 0.85rem; color: var(--uai-gray); display: flex; align-items: center; gap: 5px; }
+        .req-time { font-size: 0.75rem; color: #aaa; float: right; margin-top: -20px; }
+        .detail-pane { flex: 1; background: var(--uai-bg); padding: 30px; overflow-y: auto; position: relative; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--uai-gray); text-align: center; }
+        .empty-state svg { width: 80px; height: 80px; stroke: #ccc; margin-bottom: 20px; }
+        .request-content { background: var(--uai-white); border-radius: var(--radius); padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); max-width: 800px; margin: 0 auto; display: none; }
+        .content-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--uai-border); padding-bottom: 20px; margin-bottom: 20px; }
+        .store-name { font-size: 1.8rem; font-weight: 700; margin: 0 0 5px 0; }
+        .store-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+        .badge { background: #eef2f5; color: #555; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .info-box { background: #fafafa; padding: 15px; border-radius: var(--radius); border: 1px solid #f0f0f0; }
+        .info-label { font-size: 0.75rem; text-transform: uppercase; color: var(--uai-gray); font-weight: 700; margin-bottom: 5px; }
+        .info-value { font-size: 0.95rem; font-weight: 500; color: var(--uai-dark); }
+        .actions { display: flex; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--uai-border); flex-wrap: wrap; }
+        .btn { padding: 12px 20px; border-radius: var(--radius); font-weight: 600; cursor: pointer; border: none; font-family: inherit; transition: 0.3s; display: flex; align-items: center; gap: 8px;}
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .btn-approve { background: #10b981; color: white; }
+        .btn-approve:hover:not(:disabled) { background: #059669; }
+        .btn-reject { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+        .btn-reject:hover:not(:disabled) { background: #fee2e2; }
+        .btn-delete { background: #111; color: #fff; }
+        .btn-delete:hover:not(:disabled) { background: #333; }
+        .btn-back-mobile { display: none; margin-bottom: 20px; color: var(--uai-red); font-weight: 600; cursor: pointer; }
+        @media (max-width: 900px) { .sidebar { display: none; } .inbox-list { width: 40%; } }
+        @media (max-width: 600px) { .inbox-list { width: 100%; } .detail-pane { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--uai-white); display: none; } .btn-back-mobile { display: inline-block; } .info-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <a href="#" class="logo-container">
+            <svg class="logo-svg" viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="12" stroke-linecap="round"/>
+            </svg>
+            <div class="logo-text">UaiPede Email</div>
+        </a>
+        <div style="font-weight: 500; color: var(--uai-gray);">Gestão de Solicitações</div>
+    </header>
+
+    <div class="app-body">
+        
+        <aside class="sidebar">
+            <div class="menu-item" onclick="window.location.href='adm.html'" style="margin-bottom: 20px; border-bottom: 1px solid var(--uai-border); padding-bottom: 20px;">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar ao Painel
+            </div>
+
+            <div class="menu-item tab-menu active" id="tab-pendente" onclick="mudarAba('pendente')">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                Caixa de Entrada
+            </div>
+            <div class="menu-item tab-menu" id="tab-aprovado" onclick="mudarAba('aprovado')">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Aprovadas
+            </div>
+            <div class="menu-item tab-menu" id="tab-arquivado" onclick="mudarAba('arquivado')">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Reprovadas/Arquivadas
+            </div>
+
+            <div class="sidebar-title">Filtro por Cidade</div>
+            <div id="city-filters">A carregar cidades...</div>
+        </aside>
+
+        <section class="inbox-list">
+            <div class="inbox-header">
+                <h2 id="titulo-lista">Pendentes (<span id="contador-inbox">0</span>)</h2>
+            </div>
+            <div id="request-list-container"></div>
+        </section>
+
+        <main class="detail-pane" id="detail-pane">
+            <div class="empty-state" id="empty-state">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                <h3>Nenhuma solicitação selecionada</h3>
+                <p>Selecione um item na lista para gerenciar.</p>
+            </div>
+
+            <div class="request-content" id="request-content">
+                <div class="btn-back-mobile" onclick="fecharDetalhesMobile()">← Voltar para lista</div>
+                
+                <div class="content-header">
+                    <div>
+                        <h1 class="store-name" id="det-nome">Nome da Loja</h1>
+                        <div class="store-badges">
+                            <span class="badge" id="det-status-badge" style="display:none; color:#fff;">Status</span>
+                            <span class="badge" id="det-cidade">Cidade</span>
+                            <span class="badge" id="det-segmento" style="background:#ea1d2c; color:#fff;">Segmento</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right; color: var(--uai-gray); font-size: 0.85rem;" id="det-data">Data</div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-box">
+                        <div class="info-label">Razão Social / CNPJ</div>
+                        <div class="info-value" id="det-razao">--</div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Responsável</div>
+                        <div class="info-value" id="det-responsavel">--</div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Endereço Completo</div>
+                        <div class="info-value" id="det-endereco">--</div>
+                    </div>
+                    <div class="info-box" style="background: #eef4ff; border-color: #dbe7ff;">
+                        <div class="info-label" style="color: #0d6efd;">Contatos</div>
+                        <div class="info-value">
+                            📞 <span id="det-whats">--</span><br>
+                            ✉️ <strong id="det-email">--</strong>
+                        </div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Operação (Delivery)</div>
+                        <div class="info-value" id="det-operacao">--</div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Pagamentos Aceites</div>
+                        <div class="info-value" id="det-pagamentos">--</div>
+                    </div>
+                </div>
+
+                <div class="info-box" style="margin-bottom: 20px;">
+                    <div class="info-label">Observações da Loja</div>
+                    <div class="info-value" id="det-obs" style="font-style: italic;">Nenhuma observação.</div>
+                </div>
+
+                <div class="info-box" style="margin-bottom: 20px;">
+                    <div class="info-label">Logo Recebida</div>
+                    <div style="margin-top: 10px;">
+                        <img id="det-logo-img" src="" style="max-width: 150px; border-radius: 12px; border: 1px solid #ddd; display: none;">
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <div id="pendente-actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-approve" id="btn-approve" onclick="aprovarLoja()">✓ Aprovar</button>
+                        <button class="btn btn-reject" onclick="arquivarSolicitacao()">✕ Reprovar</button>
+                    </div>
+                    <button class="btn btn-delete" onclick="excluirSolicitacao()">🗑️ Excluir Permanentemente</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
+            authDomain: "dores-delivery.firebaseapp.com",
+            projectId: "dores-delivery",
+            storageBucket: "dores-delivery.firebasestorage.app",
+            messagingSenderId: "1029498697239",
+            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let todasDoBanco = [];
+        let abaAtual = 'pendente';
+        let cidadeAtual = 'Todas';
+        let solicitacaoAbertaId = null;
+
+        const q = query(collection(db, "solicitacoes"), orderBy("dataCriacao", "desc"));
+        
+        onSnapshot(q, (snapshot) => {
+            todasDoBanco = [];
+            snapshot.forEach(doc => {
+                todasDoBanco.push({ id: doc.id, ...doc.data() });
+            });
+            aplicarFiltros();
+        });
+
+        function formatarData(timestamp) {
+            if(!timestamp) return 'Agora';
+            const date = timestamp.toDate();
+            return date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+        }
+
+        window.mudarAba = function(aba) {
+            abaAtual = aba;
+            cidadeAtual = 'Todas';
+            document.querySelectorAll('.tab-menu').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${aba}`).classList.add('active');
+            const titulos = { 'pendente': 'Pendentes', 'aprovado': 'Aprovadas', 'arquivado': 'Reprovadas' };
+            document.getElementById('titulo-lista').innerHTML = `${titulos[aba]} (<span id="contador-inbox">0</span>)`;
+            fecharDetalhes();
+            aplicarFiltros();
+        }
+
+        window.filtrarCidade = function(cidade) {
+            cidadeAtual = cidade;
+            aplicarFiltros();
+        }
+
+        function aplicarFiltros() {
+            let cidadesSet = new Set();
+            let filtradosPorAba = todasDoBanco.filter(req => {
+                let status = req.status || 'pendente';
+                if (abaAtual === 'pendente') return status !== 'aprovado' && status !== 'arquivado';
+                return status === abaAtual;
+            });
+
+            filtradosPorAba.forEach(req => { if(req.cidade) cidadesSet.add(req.cidade); });
+            renderFiltros(Array.from(cidadesSet));
+            let filtradosFinais = cidadeAtual === 'Todas' ? filtradosPorAba : filtradosPorAba.filter(r => r.cidade === cidadeAtual);
+            renderLista(filtradosFinais);
+        }
+
+        function renderFiltros(cidadesUnicas) {
+            const container = document.getElementById('city-filters');
+            container.innerHTML = '';
+            const divTodas = document.createElement('div');
+            divTodas.className = `menu-item filter-city ${cidadeAtual === 'Todas' ? 'active' : ''}`;
+            divTodas.innerHTML = `<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg> Todas as Cidades`;
+            divTodas.onclick = () => window.filtrarCidade('Todas');
+            container.appendChild(divTodas);
+
+            cidadesUnicas.forEach(cidade => {
+                const div = document.createElement('div');
+                div.className = `menu-item filter-city ${cidadeAtual === cidade ? 'active' : ''}`;
+                div.innerHTML = `<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg> ${cidade}`;
+                div.onclick = () => window.filtrarCidade(cidade);
+                container.appendChild(div);
+            });
+        }
+
+        function renderLista(dados) {
+            const container = document.getElementById('request-list-container');
+            document.getElementById('contador-inbox').innerText = dados.length;
+            container.innerHTML = '';
+            if (dados.length === 0) {
+                container.innerHTML = `<div style="padding: 20px; color: #999; text-align: center;">Vazio.</div>`;
+                return;
+            }
+            dados.forEach(req => {
+                const item = document.createElement('div');
+                item.className = `request-item ${!req.lida && abaAtual === 'pendente' ? 'unread' : ''}`;
+                item.onclick = () => abrirDetalhes(req, item);
+                item.innerHTML = `
+                    <div class="req-time">${formatarData(req.dataCriacao)}</div>
+                    <div class="req-title">${req.nomeFantasia}</div>
+                    <div class="req-city">${req.cidade || '---'}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        async function abrirDetalhes(req, elementoClicado) {
+            solicitacaoAbertaId = req.id;
+            document.querySelectorAll('.request-item').forEach(el => el.classList.remove('active'));
+            elementoClicado.classList.add('active');
+            
+            if(!req.lida && abaAtual === 'pendente') {
+                await updateDoc(doc(db, "solicitacoes", req.id), { lida: true });
+            }
+
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('request-content').style.display = 'block';
+            if (window.innerWidth <= 600) document.getElementById('detail-pane').style.display = 'block';
+
+            document.getElementById('det-nome').innerText = req.nomeFantasia;
+            document.getElementById('det-cidade').innerText = req.cidade;
+            document.getElementById('det-segmento').innerText = req.segmento;
+            document.getElementById('det-data').innerText = formatarData(req.dataCriacao);
+            document.getElementById('det-razao').innerText = `${req.razaoSocial} | ${req.cnpj}`;
+            document.getElementById('det-responsavel').innerText = req.responsavel;
+            document.getElementById('det-endereco').innerText = `${req.ruaNumero}, ${req.bairro}${req.complemento ? ' - '+req.complemento : ''}`;
+            document.getElementById('det-whats').innerText = req.whatsapp;
+            document.getElementById('det-email').innerText = req.email;
+            document.getElementById('det-operacao').innerText = `Prazo: ${req.prazoDelivery}m | Taxa: ${req.taxaEntrega}`;
+            document.getElementById('det-pagamentos').innerText = Array.isArray(req.pagamentos) ? req.pagamentos.join(', ') : '---';
+            document.getElementById('det-obs').innerText = req.obs || "Sem observações.";
+
+            const imgEl = document.getElementById('det-logo-img');
+            imgEl.src = req.logoFileBase64 || '';
+            imgEl.style.display = req.logoFileBase64 ? 'block' : 'none';
+
+            // Visibilidade de Botões baseada no Status
+            const status = req.status || 'pendente';
+            const badge = document.getElementById('det-status-badge');
+            const pendenteBtns = document.getElementById('pendente-actions');
+
+            if(status === 'aprovado' || status === 'arquivado') {
+                pendenteBtns.style.display = 'none';
+                badge.style.display = 'inline-block';
+                badge.innerText = status === 'aprovado' ? 'APROVADA' : 'REPROVADA';
+                badge.style.background = status === 'aprovado' ? '#10b981' : '#ef4444';
+            } else {
+                pendenteBtns.style.display = 'flex';
+                badge.style.display = 'none';
+            }
+        }
+
+        window.aprovarLoja = async function() {
+            if(!solicitacaoAbertaId) return;
+            if(confirm("Aprovar esta solicitação?")) {
+                await updateDoc(doc(db, "solicitacoes", solicitacaoAbertaId), { status: 'aprovado' });
+                alert("Aprovada!");
+                fecharDetalhes();
+            }
+        };
+
+        window.arquivarSolicitacao = async function() {
+            if(!solicitacaoAbertaId) return;
+            if(confirm("Reprovar/Arquivar esta solicitação?")) {
+                await updateDoc(doc(db, "solicitacoes", solicitacaoAbertaId), { status: 'arquivado' });
+                fecharDetalhes();
+            }
+        };
+
+        // NOVA FUNÇÃO DE EXCLUSÃO
+        window.excluirSolicitacao = async function() {
+            if(!solicitacaoAbertaId) return;
+            if(confirm("ATENÇÃO: Deseja EXCLUIR PERMANENTEMENTE esta solicitação do banco de dados? Esta ação não pode ser desfeita.")) {
+                try {
+                    await deleteDoc(doc(db, "solicitacoes", solicitacaoAbertaId));
+                    alert("Solicitação excluída com sucesso.");
+                    fecharDetalhes();
+                } catch (e) {
+                    alert("Erro ao excluir: " + e.message);
+                }
+            }
+        };
+
+        function fecharDetalhes() {
+            document.getElementById('empty-state').style.display = 'flex';
+            document.getElementById('request-content').style.display = 'none';
+            solicitacaoAbertaId = null;
+        }
+
+        window.fecharDetalhesMobile = function() {
+            document.getElementById('detail-pane').style.display = 'none';
+        };
+    </script>
+</body>
+</html>

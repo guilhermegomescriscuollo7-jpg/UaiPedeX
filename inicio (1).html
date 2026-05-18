@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UaiPede - O Delivery Mais Mineiro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ea1d2c;
+            --primary-light: #fff5f5;
+            --dark: #111111;
+            --gray-text: #717171;
+            --bg-light: #f8f8f8;
+            --white: #ffffff;
+            --dark-red: #8e0c19;
+            --gradient-hero: linear-gradient(135deg, #ffffff 0%, #fff0f0 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; scroll-behavior: smooth; }
+        body { background-color: var(--white); color: var(--dark); overflow-x: hidden; }
+
+        /* HEADER */
+        header {
+            position: fixed; top: 0; left: 0; width: 100%; padding: 15px 8%;
+            background: rgba(255, 255, 255, 0.95); display: flex; 
+            justify-content: space-between; align-items: center;
+            z-index: 1000; box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+            backdrop-filter: blur(10px);
+            transition: 0.3s;
+        }
+        .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; transition: 0.3s; }
+        .logo:hover { transform: scale(1.05); }
+        .logo svg { width: 35px; height: auto; transform: rotate(-10deg); }
+        .logo span { font-size: 1.8rem; font-weight: 900; color: var(--primary); font-style: italic; letter-spacing: -1px; }
+
+        nav { display: flex; gap: 30px; align-items: center; }
+        nav a { text-decoration: none; color: var(--dark); font-weight: 600; font-size: 0.95rem; transition: 0.3s; position: relative; }
+        nav a::after {
+            content: ''; position: absolute; width: 0; height: 2px;
+            bottom: -4px; left: 0; background-color: var(--primary); transition: width 0.3s ease;
+        }
+        nav a:hover::after { width: 100%; }
+        nav a:hover { color: var(--primary); }
+
+        /* SCROLL REVEAL ANIMATIONS */
+        .reveal { opacity: 0; transform: translateY(40px); transition: all 0.8s cubic-bezier(0.5, 0, 0, 1); }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+        .delay-1 { transition-delay: 0.1s; }
+        .delay-2 { transition-delay: 0.2s; }
+        .delay-3 { transition-delay: 0.3s; }
+
+        /* HERO SECTION */
+        .hero {
+            padding: 140px 8% 80px; display: flex; align-items: center; 
+            justify-content: space-between; min-height: 100vh;
+            background: var(--gradient-hero);
+        }
+        .hero-content { max-width: 600px; }
+        .hero h1 { font-size: 4.5rem; font-weight: 900; line-height: 1.05; margin-bottom: 25px; letter-spacing: -2px; }
+        .hero p { font-size: 1.2rem; color: var(--gray-text); margin-bottom: 40px; max-width: 500px; }
+        
+        .hero-apps { display: flex; gap: 15px; flex-wrap: wrap; }
+        .btn-app { 
+            background: #000; color: #fff; padding: 10px 20px; border-radius: 12px; 
+            display: flex; align-items: center; gap: 10px; text-decoration: none; 
+            transition: all 0.3s ease; border: 1px solid transparent;
+        }
+        .btn-app:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); border-color: #333; background: #111; }
+        .btn-app i { font-size: 1.5rem; transition: 0.3s; }
+        .btn-app:hover i { transform: scale(1.1); }
+        .btn-app div span { display: block; font-size: 0.7rem; opacity: 0.8; }
+        .btn-app div strong { font-size: 1rem; }
+
+        /* FLOATING PHONE ANIMATION */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .hero-image { position: relative; width: 40%; display: flex; justify-content: center; }
+        .phone-mockup {
+            width: 300px; height: 600px; background: #fff; border: 12px solid #111;
+            border-radius: 45px; box-shadow: 0 40px 80px rgba(234, 29, 44, 0.15);
+            position: relative; overflow: hidden;
+            animation: float 5s ease-in-out infinite; 
+        }
+        .phone-mockup::after {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 130px; height: 25px; background: #111; border-radius: 0 0 20px 20px;
+        }
+        .phone-screen {
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            background: #fff; position: relative;
+        }
+        .phone-screen::before {
+            content: ''; position: absolute; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(234,29,44,0.05) 0%, transparent 70%);
+            top: -50%; left: -50%; animation: float 8s linear infinite reverse;
+        }
+        .phone-screen .uai-logo-mock { color: var(--primary); font-size: 2rem; font-weight: 900; font-style: italic; z-index: 2;}
+
+        /* SECTIONS GERAIS */
+        .section-padding { padding: 100px 8%; }
+        .section-title { font-size: 3rem; font-weight: 900; margin-bottom: 15px; }
+        .section-title span { color: var(--primary); }
+        .section-subtitle { color: var(--gray-text); font-size: 1.1rem; margin-bottom: 60px; }
+
+        /* COMO FUNCIONA */
+        .how-it-works { background-color: var(--bg-light); text-align: center; }
+        .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 25px; justify-content: center; }
+        .step-card { 
+            background: #fff; padding: 40px 25px; border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.02); 
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            border: 1px solid transparent;
+        }
+        .step-card:hover { transform: translateY(-15px) scale(1.02); box-shadow: 0 20px 40px rgba(234, 29, 44, 0.1); border-color: rgba(234,29,44,0.1); }
+        .step-icon { 
+            width: 60px; height: 60px; background: var(--primary-light); color: var(--primary); 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+            margin: 0 auto 20px; font-size: 1.5rem; transition: 0.4s;
+        }
+        .step-card:hover .step-icon { background: var(--primary); color: #fff; transform: rotateY(180deg); }
+        .step-card h4 { font-size: 1.1rem; font-weight: 800; margin-bottom: 12px; }
+        .step-card p { font-size: 0.9rem; color: var(--gray-text); line-height: 1.5; }
+
+        /* COMO ABRIR LOJA */
+        .how-to-open-store { background: #fff; text-align: center; }
+        .open-steps-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-top: 60px; }
+        .open-step { padding: 0 15px; transition: 0.3s; }
+        .open-step:hover { transform: translateY(-5px); }
+        .open-step .icon-img { height: 100px; margin-bottom: 30px; display: flex; align-items: center; justify-content: center; }
+        .open-step .icon-img i { font-size: 4rem; color: var(--primary); transition: 0.3s; }
+        .open-step:hover .icon-img i { transform: scale(1.1) translateY(-5px); filter: drop-shadow(0 10px 10px rgba(234,29,44,0.2)); }
+        .open-step h4 { font-size: 1.4rem; font-weight: 900; margin-bottom: 15px; color: #111; line-height: 1.2; }
+        .open-step p { font-size: 0.95rem; color: #666; line-height: 1.6; }
+
+        /* PLANOS SECTION */
+        .plans-section { background-color: var(--dark-red); color: var(--white); text-align: center; position: relative; overflow: hidden; }
+        .plans-section::before {
+            content: ''; position: absolute; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            top: -200px; left: -100px; border-radius: 50%;
+        }
+        .plans-title { font-size: 2.8rem; font-weight: 900; margin-bottom: 60px; color: var(--white); position: relative; z-index: 2; }
+        .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; max-width: 1200px; margin: 0 auto; text-align: left; position: relative; z-index: 2; }
+        
+        .plan-card { 
+            background: var(--white); color: var(--dark); border-radius: 20px; padding: 40px 30px; 
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2); transition: all 0.4s ease;
+            border: 2px solid transparent; position: relative;
+        }
+        .plan-card:hover { transform: translateY(-15px); border-color: var(--primary); box-shadow: 0 25px 60px rgba(0,0,0,0.5); }
+        .plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .plan-header-left { display: flex; align-items: center; gap: 15px; }
+        .plan-icon { font-size: 2.5rem; color: var(--primary); transition: 0.4s; }
+        .plan-card:hover .plan-icon { transform: scale(1.1) rotate(10deg); }
+        .plan-title { font-size: 1.5rem; font-weight: 900; }
+        .plan-link { font-size: 0.85rem; font-weight: 800; color: var(--primary); text-decoration: none; transition: 0.2s; white-space: nowrap;}
+        .plan-link:hover { text-decoration: underline; }
+        
+        .plan-detail-group { margin-bottom: 25px; }
+        .plan-detail-val { font-size: 1.2rem; font-weight: 900; margin-bottom: 4px; display: flex; align-items: center; flex-wrap: wrap;}
+        .plan-detail-desc { font-size: 0.95rem; color: var(--gray-text); line-height: 1.4; }
+        .plan-highlight { background: var(--primary-light); color: var(--primary); padding: 4px 8px; border-radius: 8px; font-size: 0.8rem; margin-left: 8px; font-weight: 800; }
+        
+        .plan-features { border-top: 1px solid #eee; padding-top: 25px; margin-top: 10px; }
+        .plan-feature-item { display: flex; gap: 12px; margin-bottom: 15px; align-items: flex-start; }
+        .plan-feature-item i { color: #00a14b; font-size: 1.1rem; margin-top: 2px; }
+        .plan-feature-item span { font-size: 0.95rem; color: var(--dark); font-weight: 500; line-height: 1.4; }
+        .plans-footer-note { font-size: 0.85rem; color: rgba(255,255,255,0.8); text-align: center; margin-top: 40px; font-weight: 500;}
+
+        /* POR QUE ESCOLHER */
+        .why-us { display: flex; justify-content: center; }
+        .why-content { max-width: 900px; width: 100%; }
+        .why-features { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; }
+        .why-item { transition: 0.3s; padding: 15px; border-radius: 12px; border: 1px solid transparent; }
+        .why-item:hover { background: var(--bg-light); border-color: #eee; transform: translateX(10px); }
+        .why-item i { color: var(--primary); font-size: 1.5rem; margin-bottom: 15px; display: block; transition: 0.3s; }
+        .why-item:hover i { transform: scale(1.2); }
+        .why-item h4 { font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+        .why-item p { font-size: 0.9rem; color: var(--gray-text); line-height: 1.4; }
+
+        /* SEÇÃO PARCEIRO (LOJA) */
+        .partner-section { background: var(--bg-light); }
+        .partner-box {
+            background: #fff; border-radius: 30px; padding: 60px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            align-items: center; transition: 0.4s;
+        }
+        .partner-box:hover { box-shadow: 0 30px 60px rgba(0,0,0,0.08); transform: translateY(-5px); }
+        .partner-box h2 { font-size: 2.8rem; font-weight: 900; margin-bottom: 20px; }
+        .partner-box h2 span { color: var(--primary); }
+        .partner-box .desc { color: var(--gray-text); margin-bottom: 40px; font-size: 1.1rem; line-height: 1.6; }
+        
+        .partner-features { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .p-feat i { color: var(--primary); font-size: 1.2rem; margin-bottom: 10px; transition: 0.3s; }
+        .p-feat:hover i { transform: scale(1.2); color: #c91623; }
+        .p-feat h5 { font-size: 1rem; font-weight: 800; margin-bottom: 5px; }
+        .p-feat p { font-size: 0.85rem; color: var(--gray-text); }
+
+        /* FORMULÁRIO / CAIXA DE CONTATO SIMPLIFICADA */
+        .contact-form { 
+            background: #fff; padding: 50px 40px; border-radius: 20px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid #f0f0f0; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; 
+        }
+        .form-title { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 800; margin-bottom: 15px; font-size: 1.5rem; }
+        .contact-form p { color: var(--gray-text); margin-bottom: 30px; line-height: 1.6; font-size: 1rem; }
+        .btn-send {
+            width: 100%; background: #000; color: #fff; border: none; padding: 18px;
+            border-radius: 12px; font-weight: 800; cursor: pointer; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-decoration: none; display: inline-block; font-size: 1.1rem;
+        }
+        .btn-send:hover { background: var(--primary); transform: translateY(-5px) scale(1.02); box-shadow: 0 15px 25px rgba(234,29,44,0.3); }
+
+        /* TECNOLOGIA */
+        .tech-section { text-align: center; }
+        .tech-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 60px; }
+        .tech-item { transition: 0.3s; padding: 20px; border-radius: 15px; }
+        .tech-item:hover { background: var(--primary-light); transform: translateY(-10px); }
+        .tech-item i { font-size: 2.5rem; color: var(--primary); margin-bottom: 20px; display: block; transition: 0.4s; }
+        .tech-item:hover i { transform: scale(1.2) rotate(10deg); }
+        .tech-item h4 { font-size: 1.3rem; font-weight: 800; margin-bottom: 15px; }
+        .tech-item p { color: var(--gray-text); font-size: 0.95rem; line-height: 1.6; }
+
+        /* FOOTER */
+        footer { background: #000; color: #fff; padding: 80px 8% 40px; }
+        .footer-main { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 60px; text-align: left; }
+        .footer-logo { font-size: 2rem; font-weight: 900; font-style: italic; color: var(--primary); margin-bottom: 15px; display: inline-block; text-decoration: none; transition: 0.3s;}
+        .footer-logo:hover { filter: brightness(1.2); }
+        .footer-col h4 { margin-bottom: 25px; font-size: 1.1rem; color: #fff;}
+        .footer-col ul { list-style: none; }
+        .footer-col ul li { margin-bottom: 15px; }
+        .footer-col ul a { color: #aaa; text-decoration: none; transition: 0.2s; display: inline-block;}
+        .footer-col ul a:hover { color: var(--primary); transform: translateX(5px); }
+        
+        .footer-apps { display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap; }
+        .footer-apps .btn-app { background: #111; border: 1px solid #333; }
+        .footer-apps .btn-app:hover { background: #222; border-color: var(--primary); }
+
+        .footer-bottom { border-top: 1px solid #222; padding-top: 40px; display: flex; justify-content: space-between; color: #777; font-size: 0.85rem; flex-wrap: wrap; gap: 20px; text-align: left; }
+        
+        /* RESPONSIVIDADE (MOBILE E TABLET) */
+        @media (max-width: 992px) {
+            .hero { flex-direction: column; text-align: center; padding-top: 120px; }
+            .hero-image { width: 100%; margin-top: 60px; }
+            .hero-apps { justify-content: center; }
+            .why-features, .partner-box { grid-template-columns: 1fr; gap: 40px; }
+            .footer-main { grid-template-columns: 1fr; text-align: center; gap: 40px; }
+            .footer-apps { justify-content: center; }
+            .hero h1 { font-size: 3rem; }
+            header { padding: 15px 5%; }
+            .tech-grid { grid-template-columns: 1fr; }
+            nav { gap: 15px; }
+        }
+        
+        @media (max-width: 768px) {
+            .section-padding { padding: 60px 5%; } /* Reduz espaços verticais no mobile */
+            .hero { padding-top: 110px; padding-bottom: 50px; }
+            .hero h1 { font-size: 2.5rem; letter-spacing: -1px; }
+            .hero p { font-size: 1rem; }
+            .section-title, .plans-title { font-size: 2.2rem; }
+            
+            .partner-box { padding: 30px 20px; gap: 40px; }
+            .partner-box h2 { font-size: 2rem; }
+            .contact-form { padding: 30px 20px; }
+            .plan-card { padding: 30px 20px; }
+            
+            .phone-mockup { width: 260px; height: 520px; border-width: 8px; } /* Celular menor para não vazar tela */
+            
+            .footer-bottom { flex-direction: column; text-align: center; justify-content: center; }
+            nav a { font-size: 0.85rem; }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 { font-size: 2.2rem; }
+            .logo span { font-size: 1.5rem; }
+            nav { gap: 10px; }
+            .btn-app { width: 100%; justify-content: center; } /* Botões ocupam 100% da largura em telas bem pequenas */
+            .footer-apps .btn-app { width: auto; } /* Deixa os botões do rodapé normais */
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="#" class="logo">
+            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="10" stroke-linecap="round"/>
+            </svg>
+            <span>UaiPede</span>
+        </a>
+        <nav>
+            <a href="#funciona">Funcionalidades</a>
+            <a href="#parceiro">Seja Parceiro</a>
+        </nav>
+    </header>
+
+    <section class="hero section-padding">
+        <div class="hero-content reveal">
+            <h1>Tudo o que você pede, do jeito que você gosta.</h1>
+            <p>Baixe agora nosso app nas melhores plataformas digitais e tenha os melhores sabores de Doresópolis na palma da sua mão.</p>
+            <div class="hero-apps">
+                <a href="https://uaipede.vercel.app/apple.html" class="btn-app">
+                    <i class="fab fa-apple"></i>
+                    <div><span>BAIXAR APP</span><strong>App Store</strong></div>
+                </a>
+                <a href="https://play.google.com/store/apps/details?id=co.median.android.yewoldn&pcampaignid=web_share" class="btn-app">
+                    <i class="fab fa-google-play"></i>
+                    <div><span>BAIXAR APP</span><strong>Google Play</strong></div>
+                </a>
+            </div>
+        </div>
+        <div class="hero-image reveal delay-1">
+            <div class="phone-mockup">
+                <div class="phone-screen">
+                    <div class="uai-logo-mock">UaiPede</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="funciona" class="how-it-works section-padding">
+        <h2 class="section-title reveal">Como funciona o <span>UaiPede?</span></h2>
+        <p class="section-subtitle reveal">É tão simples que parece mágica. Veja só:</p>
+        
+        <div class="steps-grid">
+            <div class="step-card reveal delay-1">
+                <div class="step-icon"><i class="fas fa-map-marker-alt"></i></div>
+                <h4>Informe seu endereço</h4>
+                <p>Encontramos as melhores lojas pertinho de você.</p>
+            </div>
+            <div class="step-card reveal delay-2">
+                <div class="step-icon"><i class="fas fa-search"></i></div>
+                <h4>Escolha o que pedir</h4>
+                <p>Navegue por categorias e encontre seu prato favorito.</p>
+            </div>
+            <div class="step-card reveal delay-3">
+                <div class="step-icon"><i class="fas fa-bicycle"></i></div>
+                <h4>Acompanhe e receba</h4>
+                <p>Veja cada passo do seu pedido até ele chegar na sua porta.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="why-us section-padding">
+        <div class="why-content">
+            <h2 class="section-title reveal" style="text-align: left;">Por que escolher o <span>UaiPede?</span></h2>
+            <p class="section-subtitle reveal delay-1" style="text-align: left; margin-bottom: 20px;">Criamos a melhor experiência de delivery para você aproveitar o que realmente importa.</p>
+            
+            <div class="why-features">
+                <div class="why-item reveal delay-1">
+                    <i class="fas fa-utensils"></i>
+                    <h4>Variedade Incrível</h4>
+                    <p>De comida mineira raiz até sushi, temos de tudo para matar sua fome.</p>
+                </div>
+                <div class="why-item reveal delay-2">
+                    <i class="fas fa-bolt"></i>
+                    <h4>Entrega Flash</h4>
+                    <p>Nossos entregadores são treinados para levar seu pedido o mais rápido possível.</p>
+                </div>
+                <div class="why-item reveal delay-3">
+                    <i class="fas fa-shield-alt"></i>
+                    <h4>Segurança Total</h4>
+                    <p>Pagamentos seguros e acompanhamento em tempo real do seu pedido.</p>
+                </div>
+                <div class="why-item reveal delay-1">
+                    <i class="fas fa-clock"></i>
+                    <h4>Suporte 24/7</h4>
+                    <p>Estamos aqui para ajudar você a qualquer hora do dia ou da noite.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="how-to-open-store section-padding">
+        <h2 class="section-title reveal">Como abrir uma loja no <span>UaiPede?</span></h2>
+        
+        <div class="open-steps-container">
+            <div class="open-step reveal delay-1">
+                <div class="icon-img"><i class="fas fa-file-signature"></i></div>
+                <h4>Crie uma conta com CNPJ</h4>
+                <p>Pra isso, vamos precisar do seu nome completo, e-mail e celular. Pra sua loja, tenha em mãos CNPJ, CPF e RG do titular.</p>
+            </div>
+
+            <div class="open-step reveal delay-2">
+                <div class="icon-img"><i class="fas fa-handshake"></i></div>
+                <h4>Escolha um plano</h4>
+                <p>Escolha um plano disponível. Vamos então validar suas informações e em poucos minutos você recebe o contrato para assinar.</p>
+            </div>
+
+            <div class="open-step reveal delay-3">
+                <div class="icon-img"><i class="fas fa-rocket"></i></div>
+                <h4>Configure sua loja e pronto!</h4>
+                <p>Preencha conta bancária, cardápio e afins, e estará tudo pronto para ativar sua loja e começar a receber pedidos.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="plans-section section-padding">
+        <h2 class="plans-title reveal">Conheça nossos planos</h2>
+        <div class="plans-grid">
+            
+            <div class="plan-card reveal delay-1">
+                <div class="plan-header">
+                    <div class="plan-header-left">
+                        <i class="fas fa-shopping-bag plan-icon"></i>
+                        <span class="plan-title">UaiPede Básico</span>
+                    </div>
+                    <a href="https://uaipede.vercel.app/login-vendedor.html" class="plan-link">Ver detalhes</a>
+                </div>
+                
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val" style="color: #00a14b;">Free</div>
+                    <div class="plan-detail-desc">Comissão sobre pedidos delivery</div>
+                </div>
+
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val">
+                        <span>R$ 100,00/mês</span>
+                        <span class="plan-highlight">1º mês grátis!</span>
+                    </div>
+                    <div class="plan-detail-desc">Taxa fixa mensal.</div>
+                </div>
+
+                <div class="plan-features">
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Entrega com os entregadores UaiPede</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Rastreio de entrega em tempo real</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Tecnologia para gestão de tempo e entrega</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Atendimento UaiPede até a entrega</span></div>
+                </div>
+            </div>
+
+            <div class="plan-card reveal delay-2">
+                <div class="plan-header">
+                    <div class="plan-header-left">
+                        <i class="fas fa-motorcycle plan-icon"></i>
+                        <span class="plan-title">UaiPede Destaque</span>
+                    </div>
+                    <a href="https://uaipede.vercel.app/login-vendedor.html" class="plan-link">Ver detalhes</a>
+                </div>
+                
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val" style="color: #00a14b;">Free</div>
+                    <div class="plan-detail-desc">Comissão sobre pedidos delivery</div>
+                </div>
+                 
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val">5 cotas por cidade</div>
+                    <div class="plan-detail-desc">Apenas 5 lojas em destaque na página inicial do App</div>
+                </div>
+                
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val">
+                        <span>R$ 150,00/mês</span>
+                        <span class="plan-highlight">1º mês grátis!</span>
+                    </div>
+                    <div class="plan-detail-desc">Taxa fixa mensal.</div>
+                </div>
+
+                <div class="plan-features">
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Sua Loja exibida na aba de Destaque</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Entrega com os entegadores UaiPede</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Rastreio de entrega em tempo real</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Tecnologia para gestão de tempo e entrega</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Atendimento UaiPede até a entrega</span></div>
+                </div>
+            </div>
+
+            <div class="plan-card reveal delay-3">
+                <div class="plan-header">
+                    <div class="plan-header-left">
+                        <i class="fas fa-gem plan-icon"></i>
+                        <span class="plan-title">UaiPede Premium</span>
+                    </div>
+                    <a href="https://uaipede.vercel.app/login-vendedor.html" class="plan-link">Ver detalhes</a>
+                </div>
+                
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val" style="color: #00a14b;">Free</div>
+                    <div class="plan-detail-desc">Comissão sobre pedidos delivery</div>
+                </div>
+
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val">4 cotas por cidade</div>
+                    <div class="plan-detail-desc">Apenas 4 lojas com banner rotativo de promoções na página inicial do App</div>
+                </div>
+
+                <div class="plan-detail-group">
+                    <div class="plan-detail-val">
+                        <span>R$ 200,00/mês</span>
+                        <span class="plan-highlight">1º mês grátis!</span>
+                    </div>
+                    <div class="plan-detail-desc">Taxa fixa mensal.</div>
+                </div>
+
+                <div class="plan-features">
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Sua Loja exibida na aba de Destaque</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Promoções no banner rotativo na tela principal</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Entrega com os entegadores UaiPede</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Rastreio de entrega em tempo real</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Tecnologia para gestão de tempo e entrega</span></div>
+                    <div class="plan-feature-item"><i class="fas fa-check"></i><span>Atendimento UaiPede até a entrega</span></div>
+                </div>
+            </div>
+
+        </div>
+        <p class="plans-footer-note reveal">*Inicie o cadastro e verifique a disponibilidade na sua região.</p>
+    </section>
+
+    <section id="parceiro" class="partner-section section-padding">
+        <div class="partner-box reveal">
+            <div>
+                <h2>Sua loja no <span>UaiPede.</span></h2>
+                <p class="desc">Aumente suas vendas e alcance milhares de novos clientes com a plataforma feita por quem mora aqui, para quem mora aqui.</p>
+                
+                <div class="partner-features">
+                    <div class="p-feat"><i class="fas fa-percentage"></i><h5>Taxas Justas</h5><p>Diferente das grandes plataformas, cobramos taxas que respeitam o lojista.</p></div>
+                    <div class="p-feat"><i class="fas fa-headset"></i><h5>Suporte Humanizado</h5><p>Problemas? Você fala com a gente na hora, sem robôs ou demoras.</p></div>
+                    <div class="p-feat"><i class="fas fa-users"></i><h5>Comunidade Forte</h5><p>Foco total no fortalecimento do comércio local e na nossa economia.</p></div>
+                    <div class="p-feat"><i class="fas fa-chart-line"></i><h5>Painel do Lojista</h5><p>Gestão total de cardápio, preços e horários com autonomia total.</p></div>
+                </div>
+            </div>
+
+            <div class="contact-form">
+                <div class="form-title"><i class="fas fa-comments" style="color: var(--primary);"></i> Fale com nosso time</div>
+                <p>Nossa equipe está pronta para ajudar a sua loja a vender mais. Clique abaixo para iniciar o seu cadastro na nossa plataforma e escolher o melhor plano para o seu negócio!</p>
+                <a href="https://uaipede.vercel.app/cadastroestabelecimento.html" class="btn-send">Solicitar Cadastro</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="tech-section section-padding">
+        <h2 class="section-title reveal">Tecnologia que impulsiona seu negócio</h2>
+        <p class="section-subtitle reveal delay-1">Ferramentas completas para você ter autonomia total sobre sua vitrine digital.</p>
+        
+        <div class="tech-grid">
+            <div class="tech-item reveal delay-1">
+                <i class="fas fa-mobile-alt"></i>
+                <h4>Catálogo Online</h4>
+                <p>Interface limpa e intuitiva para o cliente encontrar o que deseja em segundos.</p>
+            </div>
+            <div class="tech-item reveal delay-2">
+                <i class="fas fa-check-shield"></i>
+                <h4>Autonomia Total</h4>
+                <p>Cadastre produtos, altere preços em segundos.</p>
+            </div>
+            <div class="tech-item reveal delay-3">
+                <i class="fas fa-bell"></i>
+                <h4>Gestão de Pedidos</h4>
+                <p>Acompanhe o fluxo completo: do preparo à entrega, com notificações em tempo real e chat com o cliente.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-main">
+            <div class="reveal delay-1">
+                <a href="#" class="footer-logo">UaiPede</a>
+                <p style="color: #777; line-height: 1.6; max-width: 300px;">O delivery que entende o mineiro. Rápido, prático e sempre com as melhores opções para você.</p>
+                
+                <div class="footer-apps">
+                    <a href="https://uaipede.vercel.app/apple.html" class="btn-app">
+                        <i class="fab fa-apple"></i>
+                        <div><span>BAIXAR APP</span><strong>App Store</strong></div>
+                    </a>
+                    <a href="https://play.google.com/store/apps/details?id=co.median.android.yewoldn&pcampaignid=web_share" class="btn-app">
+                        <i class="fab fa-google-play"></i>
+                        <div><span>BAIXAR APP</span><strong>Google Play</strong></div>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="footer-col reveal delay-2">
+                <h4>UaiPede</h4>
+                <ul><li><a href="hhttps://uaipede.vercel.app/login.html">Portal do Cliente</a></li></ul>
+                <ul><li><a href="https://uaipede.vercel.app/login-vendedor.html">Portal do Parceiro</a></li></ul>
+                <ul><li><a href="https://uaipede.vercel.app/entregador.html">Portal do Entregador</a></li></ul>
+            </div>
+            
+            <div class="footer-col reveal delay-3">
+                <h4>Descobrir</h4>
+                <ul><li><a href="https://uaipede.vercel.app/cadastroestabelecimento.html">Seja Parceiro</a></li></ul>
+            </div>
+            
+            <div class="footer-col reveal delay-3">
+                <h4>Saiba mais</h4>
+                <ul><li><a href="https://uaipede.vercel.app/privacidade.html">Privacidade</a></li></ul>
+                <ul><li><a href="https://www.instagram.com/uaiped/">Nosso Instagram</a></li></ul>
+                <ul><li><a href="https://www.instagram.com/uaiped/">WhatsApp</a></li></ul>
+            </div>
+        </div>
+        <div class="footer-bottom reveal">
+            <p>&copy; 2026 UaiPede Delivery. Todos os direitos reservados. Gh Space Tech CNPJ: 59.742.566/0001-31</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15 
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        observer.unobserve(entry.target); 
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach((element) => {
+                observer.observe(element);
+            });
+        });
+    </script>
+</body>
+</html>

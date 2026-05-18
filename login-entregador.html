@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login do Entregador - Dores Delivery</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background-color: #f4f5f7; display: flex; align-items: center; justify-content: center; height: 100vh; color: #333; }
+
+        .login-box { background: #fff; padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 400px; text-align: center; }
+        
+        .logo-area { margin-bottom: 25px; display: flex; flex-direction: column; align-items: center; }
+        .logo-area h1 { font-size: 1.5rem; color: #111; font-weight: 900; }
+        .logo-area p { font-size: 0.9rem; color: #777; margin-top: 5px; }
+
+        .alert-box { display: none; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; font-weight: bold; }
+        .alert-error { background: #fef0f0; color: #ea1d2c; border: 1px solid #fbd5d5; }
+        .alert-success { background: #e6f4ea; color: #00a14b; border: 1px solid #c3e6cb; }
+
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; font-size: 0.85rem; color: #555; font-weight: 500; margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; outline: none; background: #f9f9f9; transition: 0.2s; }
+        .form-group input:focus { border-color: #ea1d2c; background: #fff; }
+
+        /* Botão vermelho principal */
+        .btn-primary { width: 100%; background: #ea1d2c; color: #fff; border: none; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        .btn-primary:hover { background: #c81824; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
+        .back-link { display: block; margin-top: 25px; font-size: 0.85rem; color: #777; text-decoration: none; }
+        .back-link:hover { color: #111; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div class="login-box">
+        <div class="logo-area">
+            <svg width="90" height="65" viewBox="0 0 100 70" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 10px;">
+                <path d="M28 28 C 32 16, 42 16, 46 28" stroke="#ea1d2c" stroke-width="6" stroke-linecap="round" fill="none"/>
+                <path d="M54 28 C 58 16, 68 16, 72 28" stroke="#ea1d2c" stroke-width="6" stroke-linecap="round" fill="none"/>
+                <path d="M15 45 Q 50 75 85 45" stroke="#ea1d2c" stroke-width="8" stroke-linecap="round" fill="none"/>
+            </svg>
+            
+            <h1>Portal do Entregador</h1>
+            <p>Dores Delivery</p>
+        </div>
+
+        <div id="alert-msg" class="alert-box"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Email do entregador</label>
+                <input type="email" id="email" placeholder="Digite seu e-mail" required>
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="pass" placeholder="Sua senha" required>
+            </div>
+            
+            <button type="submit" class="btn-primary" id="btn-login">Entrar</button>
+        </form>
+
+        <a href="index.html" class="back-link">← Voltar para a página inicial</a>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // SUA CONFIGURAÇÃO OFICIAL FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
+            authDomain: "dores-delivery.firebaseapp.com",
+            projectId: "dores-delivery",
+            storageBucket: "dores-delivery.firebasestorage.app",
+            messagingSenderId: "1029498697239",
+            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Verifica se já está logado
+        if (localStorage.getItem('loggedDriver')) {
+            window.location.href = "entregador.html";
+        }
+
+        function showAlert(msg, type) {
+            const alertBox = document.getElementById('alert-msg');
+            alertBox.innerText = msg;
+            alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
+            alertBox.style.display = 'block';
+            if(type === 'error') {
+                setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
+            }
+        }
+
+        const form = document.getElementById('login-form');
+        const btnLogin = document.getElementById('btn-login');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+            
+            const email = document.getElementById('email').value.trim();
+            const pass = document.getElementById('pass').value.trim();
+
+            if (!email || !pass) {
+                showAlert("❌ Preencha todos os campos.", "error");
+                return;
+            }
+
+            btnLogin.disabled = true;
+            btnLogin.innerText = "Verificando...";
+
+            try {
+                // Busca o entregador no Firebase
+                const q = query(collection(db, "drivers"), where("email", "==", email), where("password", "==", pass));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    showAlert("❌ E-mail ou senha incorretos.", "error");
+                    document.getElementById('pass').value = '';
+                    btnLogin.disabled = false;
+                    btnLogin.innerText = "Entrar";
+                    return;
+                }
+
+                // Pega os dados do entregador
+                let driverData = null;
+                let driverId = null;
+                
+                querySnapshot.forEach((doc) => {
+                    driverData = doc.data();
+                    driverId = doc.id;
+                });
+
+                // Verifica se o Administrador bloqueou este entregador
+                if (driverData.isActive === false) {
+                    showAlert("⚠️ O seu acesso foi bloqueado pelo administrador.", "error");
+                    btnLogin.disabled = false;
+                    btnLogin.innerText = "Entrar";
+                    return;
+                }
+
+                // Salva os dados no celular do entregador para ele não precisar logar toda hora
+                const loggedDriverInfo = { id: driverId, name: driverData.name };
+                localStorage.setItem('loggedDriver', JSON.stringify(loggedDriverInfo));
+                
+                showAlert("✅ Login efetuado! Boa viagem.", "success");
+                
+                setTimeout(() => {
+                    window.location.href = "entregador.html"; // Redireciona para o painel
+                }, 800); 
+
+            } catch (error) {
+                console.error("Erro no login:", error);
+                showAlert("❌ Erro de conexão com o servidor. Tente novamente.", "error");
+                btnLogin.disabled = false;
+                btnLogin.innerText = "Entrar";
+            }
+        });
+    </script>
+</body>
+</html>

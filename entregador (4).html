@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>App do Entregador - UaiPede</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #f4f5f7; color: #3e3e3e; overflow-x: hidden; height: 100vh; display: flex; flex-direction: column; }
+        
+        /* TELA DE LOGIN */
+        #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .login-box { background: #fff; width: 100%; max-width: 380px; padding: 40px 30px; border-radius: 24px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .login-box h2 { color: #ea1d2c; font-weight: 900; margin-bottom: 5px; font-size: 1.8rem; letter-spacing: -0.5px;}
+        .login-box p { color: #777; font-size: 0.95rem; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; font-size: 0.8rem; color: #555; font-weight: 800; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .form-input { width: 100%; padding: 16px; border: 1px solid #e5e5e5; border-radius: 12px; font-size: 1rem; outline: none; background: #fdfdfd; transition: 0.3s; color: #333;}
+        .form-input:focus { border-color: #ea1d2c; box-shadow: 0 0 0 4px rgba(234, 29, 44, 0.1); background: #fff;}
+        .btn-login { width: 100%; background: #ea1d2c; color: #fff; border: none; padding: 16px; border-radius: 12px; font-weight: 900; font-size: 1.15rem; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        .btn-login:active { transform: translateY(2px); opacity: 0.9; }
+
+        /* APP CONTAINER */
+        #app-screen { display: none; flex: 1; flex-direction: column; position: relative; height: 100%; overflow: hidden;}
+        
+        /* HEADER PRINCIPAL (FLUTUANTE) */
+        .top-header {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: flex-start; z-index: 100;
+            pointer-events: none;
+        }
+        .top-header > * { pointer-events: auto; }
+        
+        .header-avatar {
+            width: 48px; height: 48px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #fff;
+        }
+        .header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+        .status-pill {
+            background: #fff; color: #717171; border-radius: 30px; padding: 8px 24px;
+            display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1rem;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.08); transition: 0.3s;
+        }
+        .status-pill input { display: none; }
+        .status-pill.online { background: #00a14b; color: #fff; }
+        
+        .searching-pill {
+            background: #fff; color: #00a14b; border-radius: 20px; padding: 8px 16px;
+            font-weight: 800; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex; align-items: center; gap: 8px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+
+        /* NAVEGAÇÃO INFERIOR */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; display: flex; 
+            padding: 8px 0; padding-bottom: calc(8px + env(safe-area-inset-bottom));
+            z-index: 100; border-top: 1px solid #f0f0f0;
+        }
+        .tab-btn { 
+            flex: 1; text-align: center; font-weight: 800; font-size: 0.7rem; 
+            background: none; border: none; cursor: pointer; color: #a6a6a6; 
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+        }
+        .tab-btn svg { stroke: #a6a6a6; stroke-width: 2.5; width: 24px; height: 24px; transition: 0.2s; fill: none;}
+        .tab-btn.active { color: #111; }
+        .tab-btn.active svg { stroke: #111; fill: #111;}
+
+        /* ÁREA PRINCIPAL */
+        .content-area { flex: 1; position: relative; height: 100%; overflow: hidden; }
+        .section { display: none; height: 100%; width: 100%; position: absolute; top:0; left:0; overflow-y: auto; padding-bottom: 80px; background: #f4f5f7;}
+        .section.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* =======================================================
+           TELA 1: INÍCIO (MAPA E BOTTOM SHEETS)
+        ======================================================== */
+        #map-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .map-fabs { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 15px; }
+        .map-fab { width: 50px; height: 50px; background: #fff; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; cursor:pointer;}
+
+        .bottom-sheet-home {
+            position: absolute; bottom: 70px; left: 0; width: 100%;
+            background: #fff; border-radius: 24px 24px 0 0; padding: 25px 20px;
+            z-index: 10; box-shadow: 0 -4px 20px rgba(0,0,0,0.08); transition: 0.4s ease;
+        }
+        .sheet-handle { width: 40px; height: 4px; background: #e0e0e0; border-radius: 4px; margin: 0 auto 20px; }
+        .promo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .promo-header h3 { font-size: 1.2rem; font-weight: 900; color: #111; }
+        .promo-header a { font-size: 0.9rem; font-weight: 800; color: #ea1d2c; text-decoration: none; }
+        .earnings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .earn-card { background: #f9f9f9; padding: 15px; border-radius: 16px; }
+        .earn-card span { display: block; font-size: 0.8rem; color: #717171; font-weight: 500; margin-bottom: 5px; }
+        .earn-card strong { display: block; font-size: 1.3rem; font-weight: 900; color: #111; }
+        .earn-card p { font-size: 0.85rem; color: #111; font-weight: 800; display: flex; justify-content: space-between; margin-top: 5px; }
+        .btn-rotas-disponiveis {
+            width: 100%; border: 1px solid #ea1d2c; background: #fff; color: #ea1d2c;
+            padding: 16px; border-radius: 16px; font-weight: 900; font-size: 1rem;
+            display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(234,29,44,0.1); margin-bottom: 20px;
+        }
+
+        /* =======================================================
+           MODAL 1: PEDIDOS LIVRES
+        ======================================================== */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 200; display: none; flex-direction: column; justify-content: flex-end; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: #fff; width: 100%; height: 85vh; border-radius: 24px 24px 0 0; display: flex; flex-direction: column; animation: slideUp 0.3s ease; position: relative; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-header-img { height: 140px; background: #ff9b26; border-radius: 24px 24px 0 0; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }
+        .modal-header-img::after { content: '🛵'; font-size: 6rem; margin-bottom: -20px; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 25px 20px; background: #fff; }
+        .modal-body h3 { text-align: center; font-size: 1.2rem; font-weight: 900; color: #111; margin-bottom: 5px;}
+        .modal-body p { text-align: center; font-size: 0.85rem; color: #717171; margin-bottom: 25px;}
+        .order-list-item { padding: 20px 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+        .oli-details h4 { font-size: 1rem; font-weight: 800; color: #111; margin-bottom: 4px; }
+        .oli-details span { font-size: 0.85rem; color: #717171; font-weight: 500; }
+        .oli-arrow { color: #ea1d2c; font-weight: 900; font-size: 1.2rem;}
+        .btn-fechar { text-align: center; padding: 20px; color: #ea1d2c; font-weight: 900; cursor: pointer; font-size: 1rem; }
+
+        /* =======================================================
+           MODAL 2: DETALHES DO PEDIDO
+        ======================================================== */
+        .modal-details { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 300; display: none; flex-direction: column; }
+        .modal-details.active { display: flex; animation: slideUp 0.3s ease; }
+        .det-green-banner { height: 25vh; background: #008a4a; display: flex; align-items: center; justify-content: center; position: relative; }
+        .det-green-banner::after { content: '🧑‍🚀'; font-size: 5rem; }
+        .det-white-card { flex: 1; background: #fff; border-radius: 24px 24px 0 0; margin-top: -24px; z-index: 5; padding: 30px 25px; overflow-y: auto; display: flex; flex-direction: column; }
+        .det-price { text-align: center; font-size: 1.8rem; font-weight: 900; color: #111; margin-bottom: 25px; }
+        .det-metrics { display: flex; justify-content: space-between; border-bottom: 1px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 20px;}
+        .det-metrics div { display: flex; flex-direction: column; gap: 6px; }
+        .det-metrics .lbl { font-size: 0.85rem; color: #717171; font-weight: 500; }
+        .det-metrics .val { font-size: 0.95rem; color: #111; font-weight: 800; text-align: right;}
+        .det-alert { background: #f0f6ff; color: #0d6efd; padding: 12px 15px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; display: flex; align-items:center; gap: 10px; margin-bottom: 25px; line-height: 1.4;}
+        .det-step { display: flex; gap: 15px; margin-bottom: 20px; }
+        .det-step .icon { font-size: 1.2rem; width: 24px; display:flex; justify-content:center; margin-top: 2px;}
+        .det-step .info small { display: block; font-weight: 900; color: #111; font-size: 0.9rem; margin-bottom: 4px; }
+        .det-step .info p { color: #717171; font-size: 0.85rem; line-height: 1.4; }
+        .btn-montar-rota { background: #ea1d2c; color: #fff; border: none; width: 100%; padding: 18px; border-radius: 12px; font-weight: 900; font-size: 1.05rem; cursor: pointer; margin-top: auto; transition: 0.2s;}
+        .btn-voltar-det { text-align: center; padding: 15px; color: #ea1d2c; font-weight: 800; cursor: pointer; margin-top: 10px; font-size: 0.95rem; background: none; border:none; width: 100%;}
+
+        /* =======================================================
+           TELA: EXTRATO (MEUS REPASSES) E FILTRO DIÁRIO
+        ======================================================== */
+        #sec-extrato { background: #fff; padding-top: 20px;}
+        .extrato-header { padding: 0 20px 20px; border-bottom: 8px solid #f4f5f7; }
+        .extrato-header h2 { font-size: 0.85rem; color: #111; font-weight: 800; text-transform: uppercase; margin-bottom: 15px; display:flex; align-items:center; justify-content:space-between;}
+        
+        .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .filter-row p { font-size: 0.9rem; color: #111; font-weight: 800; margin: 0; }
+        .filter-row input[type="date"] { padding: 8px 12px; border-radius: 8px; border: 1px solid #fbd5d5; background: #fff5f5; color: #ea1d2c; font-weight: 900; outline: none; font-size: 0.85rem; }
+
+        .extrato-header .total { font-size: 2.2rem; font-weight: 900; color: #111; letter-spacing: -1px; margin-bottom: 8px;}
+        .extrato-header p.sub { font-size: 0.9rem; color: #717171; }
+        .extrato-list { padding: 20px; }
+        .extrato-list h3 { font-size: 1.1rem; font-weight: 900; color: #111; margin-bottom: 20px; }
+        .repasse-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .rep-left { display: flex; align-items: center; gap: 15px; }
+        .rep-icon { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .rep-icon.green { background: #e6f4ea; color: #00a14b; }
+        .rep-info strong { display: block; font-size: 0.95rem; font-weight: 800; color: #111; margin-bottom: 2px;}
+        .rep-info span { font-size: 0.8rem; color: #717171; }
+        .rep-right { font-size: 1rem; font-weight: 900; }
+        .rep-right.green { color: #00a14b; }
+
+        /* =======================================================
+           TELA: EM ROTA (MAPA)
+        ======================================================== */
+        .rota-card { background: #fff; padding: 20px; border-radius: 24px; margin: 0 0 20px 0; border: 1px solid #eee; box-shadow: 0 -4px 30px rgba(0,0,0,0.15); pointer-events:auto; }
+        .btn-waze { background: #f0f6ff; color: #0d6efd; padding: 14px; border-radius: 12px; border: 1px solid #dce8ff; font-weight: 800; font-size: 0.95rem; width: 100%; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;}
+        .btn-concluir { background: #00a14b; color: #fff; border: none; padding: 16px; border-radius: 12px; width: 100%; font-weight: 900; font-size: 1rem; cursor: pointer;}
+
+        /* =======================================================
+           TELA: MAIS (OPÇÕES)
+        ======================================================== */
+        #sec-mais { background: #f4f5f7; padding: 0; }
+        .profile-header { background: #ea1d2c; padding: 30px 20px; color: #fff; display: flex; align-items: center; gap: 15px; }
+        .profile-avatar { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
+        .profile-info { flex: 1; }
+        .profile-info h2 { font-size: 1.2rem; font-weight: 900; margin-bottom: 2px; }
+        .profile-info p { font-size: 0.85rem; opacity: 0.9; margin-bottom: 4px; }
+        .profile-info .loc { font-size: 0.8rem; display: flex; align-items: center; gap: 4px; opacity: 0.9; margin-bottom: 8px;}
+        .profile-status { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
+        .profile-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #00a14b; }
+        .profile-status.offline .dot { background: #ccc; }
+        
+        .menu-section { padding: 20px; }
+        .menu-section-title { font-size: 0.75rem; font-weight: 800; color: #777; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
+        .menu-block { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 20px; border: 1px solid #f0f0f0; }
+        .menu-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: 0.2s; }
+        .menu-item:active { background: #f9f9f9; }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-icon { width: 40px; height: 40px; border-radius: 50%; background: #f9f9f9; display: flex; align-items: center; justify-content: center; margin-right: 15px; color: #333; }
+        .menu-text { flex: 1; }
+        .menu-text h4 { font-size: 0.95rem; font-weight: 800; color: #111; margin-bottom: 2px; }
+        .menu-text p { font-size: 0.8rem; color: #888; }
+        .menu-arrow { color: #ccc; }
+        
+        .menu-logout { display: flex; align-items: center; padding: 16px; background: #fff; border-radius: 16px; cursor: pointer; color: #ea1d2c; font-weight: 900; box-shadow: 0 2px 10px rgba(0,0,0,0.02); border: 1px solid #f0f0f0; justify-content: flex-start; gap: 15px;}
+        .menu-logout .icon { width: 40px; height: 40px; border-radius: 50%; background: #fff5f5; display: flex; align-items: center; justify-content: center; color: #ea1d2c; }
+        
+        .app-version { text-align: center; color: #aaa; font-size: 0.8rem; margin-top: 10px; margin-bottom: 30px; font-weight: 500; }
+
+        /* TOAST */
+        .toast-msg { position: fixed; top: -100px; left: 5%; right: 5%; background: #fff; border-left: 8px solid #ea1d2c; border-radius: 16px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); padding: 20px; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 100000; transition: top 0.5s ease;}
+        .toast-msg h4 { font-size: 1.2rem; font-weight: 900; color: #ea1d2c; margin: 0; }
+        .toast-msg.show { top: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>UaiPede Entregas</h2>
+            <div class="form-group"><label>E-mail</label><input type="email" id="login-email" class="form-input" placeholder="Seu e-mail"></div>
+            <div class="form-group"><label>Senha</label><input type="password" id="login-pass" class="form-input" placeholder="Sua senha"></div>
+            <button class="btn-login" onclick="window.loginDriver()">Entrar</button>
+        </div>
+    </div>
+
+    <div id="app-screen">
+        
+        <div class="top-header" id="main-header">
+            <div class="header-avatar"><img src="" id="drv-avatar" alt="Avatar"></div>
+            
+            <div class="header-right">
+                <label class="status-pill" id="pill-toggle">
+                    <input type="checkbox" id="driver-status-toggle" onchange="window.toggleOnlineStatus()">
+                    <span id="status-text">Indisponível</span>
+                </label>
+                <div class="searching-pill" id="pill-searching" style="display:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Procurando rotas...
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            
+            <div id="sec-inicio" class="section active" style="padding:0; overflow:hidden;">
+                <div id="map-container"></div>
+
+                <div class="map-fabs">
+                    <div class="map-fab" onclick="window.centerMap()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                    <div class="map-fab" style="color:#ea1d2c; font-weight:bold; font-size:1.2rem;">!</div>
+                </div>
+                
+                <div class="bottom-sheet-home show" id="home-bottom-sheet">
+                    <div class="sheet-handle"></div>
+                    
+                    <div id="view-offline-gains">
+                        <div class="promo-header">
+                            <h3>Seus ganhos</h3>
+                            <a href="#" onclick="window.switchTab('extrato')">Ver mais</a>
+                        </div>
+                        <div class="earnings-grid">
+                            <div class="earn-card">
+                                <span>Ganhos do dia</span>
+                                <strong id="home-earnings">R$ 0,00</strong>
+                            </div>
+                            <div class="earn-card">
+                                <span>Rotas aceitas</span>
+                                <p>Hoje <strong id="home-accepted">0</strong></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="view-found-orders" style="display:none;">
+                        <h3 style="margin-bottom:5px;">Conheça o Rotas Disponíveis</h3>
+                        <p style="font-size:0.85rem; color:#717171; margin-bottom:20px;">Escolha o pedido que estiver livre e monte sua rota como preferir.</p>
+                        
+                        <div class="btn-rotas-disponiveis" onclick="window.openOrderList()">
+                            <span style="display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg> Pedidos disponíveis pra você</span>
+                            <span id="home-orders-count">></span>
+                        </div>
+
+                        <div class="promo-header">
+                            <h3>Seus ganhos</h3>
+                            <a href="#" onclick="window.switchTab('extrato')">Ver mais</a>
+                        </div>
+                        <div class="earnings-grid">
+                            <div class="earn-card">
+                                <span>Ganhos do dia</span>
+                                <strong id="home-earnings-2">R$ 0,00</strong>
+                            </div>
+                            <div class="earn-card">
+                                <span>Rotas aceitas</span>
+                                <p>Hoje <strong id="home-accepted-2">0</strong></p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div id="sec-em-rota" class="section" style="padding:0; overflow:hidden;">
+                <div id="map-rota-container" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; display:none;"></div>
+                
+                <div class="top-header" style="pointer-events:none; z-index:100; justify-content:center; padding-top:20px;">
+                    <div style="background:#fff; padding:10px 20px; border-radius:20px; font-weight:900; font-size:0.9rem; box-shadow:0 4px 15px rgba(0,0,0,0.1); color:#111; pointer-events:auto; display:none;" id="rota-top-badge">Acompanhamento de Rota</div>
+                </div>
+
+                <div id="rota-bottom-sheet" style="position:absolute; bottom:70px; left:0; width:100%; z-index:10; padding:0 20px; display:flex; flex-direction:column; justify-content:flex-end; pointer-events:none;">
+                    <div id="no-active-msg" style="text-align:center; padding:40px 20px; color:#999; background:#fff; border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.1); margin-bottom:20px; pointer-events:auto;">Nenhuma entrega em andamento.</div>
+                    <div id="my-rides-list" style="pointer-events:auto;"></div>
+                </div>
+            </div>
+            
+            <div id="sec-extrato" class="section">
+                <div class="extrato-header">
+                    <h2>Meus Repasses <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea1d2c" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></h2>
+                    
+                    <div class="filter-row">
+                        <p>Repasse Diário</p>
+                        <input type="date" id="filter-date-extrato" onchange="window.renderHistoryOrders()">
+                    </div>
+
+                    <div class="total" id="hist-total-val">R$ 0,00</div>
+                    <p class="sub">O valor vai pra sua conta em breve.</p>
+                </div>
+                <div class="extrato-list">
+                    <h3>Histórico de repasses</h3>
+                    <div id="history-rides-list"></div>
+                </div>
+            </div>
+
+            <div id="sec-mais" class="section">
+                <div class="profile-header">
+                    <div class="profile-avatar" id="mais-avatar">E</div>
+                    <div class="profile-info">
+                        <h2 id="mais-name">Carregando...</h2>
+                        <p id="mais-email">...</p>
+                        <div class="loc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <span id="mais-city">Sua Cidade</span></div>
+                        <div class="profile-status" id="mais-status-badge"><div class="dot"></div> <span id="mais-status-text">Disponível</span></div>
+                    </div>
+                </div>
+
+                <div class="menu-section">
+                    <div class="menu-section-title">Meu Perfil</div>
+                    <div class="menu-block">
+                        <div class="menu-item" onclick="window.editDriverName()">
+                            <div class="menu-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+                            <div class="menu-text">
+                                <h4>Editar Nome</h4>
+                                <p>Atualizar seu nome de exibição</p>
+                            </div>
+                            <div class="menu-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
+                        </div>
+                        <div class="menu-item" onclick="window.resetDriverPassword()">
+                            <div class="menu-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
+                            <div class="menu-text">
+                                <h4>Redefinir Senha</h4>
+                                <p>Mudar sua senha de acesso</p>
+                            </div>
+                            <div class="menu-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
+                        </div>
+                    </div>
+
+                    <div class="menu-logout" onclick="window.logoutDriver()">
+                        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></div>
+                        Sair da conta
+                    </div>
+                    
+                    <div class="app-version">UaiPede Entregador v1.0.0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <button class="tab-btn active" id="tab-inicio" onclick="window.switchTab('inicio')">
+                <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V9"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                Início
+            </button>
+            <button class="tab-btn" id="tab-em-rota" onclick="window.switchTab('em-rota')">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Em Rota
+            </button>
+            <button class="tab-btn" id="tab-extrato" onclick="window.switchTab('extrato')">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                Extrato
+            </button>
+            <button class="tab-btn" id="tab-mais" onclick="window.switchTab('mais')">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                Mais
+            </button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="orders-list-modal">
+        <div class="modal-content">
+            <div class="modal-header-img"></div>
+            <div class="modal-body">
+                <h3>Pedidos livres</h3>
+                <p>Escolha um dos pedidos abaixo que<br>montaremos uma rota pra você</p>
+                <div id="list-modal-render"></div>
+            </div>
+            <div class="btn-fechar" onclick="window.closeOrderList()">Fechar</div>
+        </div>
+    </div>
+
+    <div class="modal-details" id="order-details-modal">
+        <div class="det-green-banner"></div>
+        <div class="det-white-card">
+            <div class="det-price" id="det-price-val">R$ 0,00</div>
+            
+            <div class="det-metrics">
+                <div>
+                    <span class="lbl">Distância total da rota</span>
+                    <span class="lbl">Tempo estimado da rota</span>
+                </div>
+                <div>
+                    <span class="val" id="det-dist">--</span>
+                    <span class="val" id="det-time">--</span>
+                </div>
+            </div>
+
+            <div class="det-alert">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span>Ao montar a rota com o pedido, você poderá ver mais detalhes antes de decidir</span>
+            </div>
+            
+            <div class="det-step">
+                <div class="icon">🏬</div>
+                <div class="info">
+                    <small id="det-store-name">Coleta</small>
+                    <p id="det-store-addr">Endereço</p>
+                </div>
+            </div>
+            <div class="det-step">
+                <div class="icon">📍</div>
+                <div class="info">
+                    <small>Entrega</small>
+                    <p id="det-cust-addr">Endereço</p>
+                </div>
+            </div>
+            <div class="det-step" style="border:none;">
+                <div class="icon">💳</div>
+                <div class="info">
+                    <small>Pagamento</small>
+                    <p id="det-pay-method">Forma de pagamento</p>
+                </div>
+            </div>
+            
+            <button class="btn-montar-rota" id="btn-accept-route">Montar rota com esse pedido</button>
+            <button class="btn-voltar-det" onclick="window.closeOrderDetails()">Voltar</button>
+        </div>
+    </div>
+
+    <div id="new-ride-toast" class="toast-msg">
+        <h4 style="color:#ea1d2c; font-weight:900;">NOVA CORRIDA!</h4>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+
+        // CHAVE CORRIGIDA AQUI!
+        const firebaseConfig = {
+            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsP9dEF_n7Eg",
+            authDomain: "dores-delivery.firebaseapp.com",
+            projectId: "dores-delivery",
+            storageBucket: "dores-delivery.firebasestorage.app",
+            messagingSenderId: "1029498697239",
+            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const messaging = getMessaging(app);
+
+        let loggedDriver = JSON.parse(localStorage.getItem('loggedDriver'));
+        let isOnline = false;
+        let storesCache = {}; 
+        let availableCount = 0;
+        let allPendingOrders = [];
+        let myAcceptedOrders = [];
+        let myHistoryOrders = [];
+
+        // Coordenadas Globais para os mapas
+        window.driverLat = -15.7801;
+        window.driverLon = -47.9292;
+        window.appMap = null;
+        window.driverMarker = null;
+        
+        window.rotaMap = null;
+        window.rotaDriverMarker = null;
+        window.storeMarker = null;
+        window.customerMarker = null;
+        window.routeLine = null;
+
+        async function enablePushNotifications() {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const currentToken = await getToken(messaging, { vapidKey: 'BLAK6sWeoRppo1BfaRA9NvtwdrdPzUOBCf_ZLBiLijOx3UvWkVa9C7wVA64wa7z_qhZ6pXhcSVgkcQK8K4wPkro' });
+                    
+                    if (currentToken) {
+                        console.log('Token gerado:', currentToken);
+                        await updateDoc(doc(db, "drivers", loggedDriver.id), { fcmToken: currentToken });
+                    }
+                }
+            } catch (error) {
+                console.log('Erro ao gerar token push', error);
+            }
+        }
+
+        window.onload = async () => {
+            // Seta o filtro de data do extrato para a data de hoje ao abrir
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('filter-date-extrato').value = todayStr;
+
+            if (loggedDriver && loggedDriver.id) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-screen').style.display = 'flex';
+                
+                // Pede a permissão e salva o token
+                enablePushNotifications();
+                
+                // Escuta mensagens enquanto o app está aberto
+                onMessage(messaging, (payload) => {
+                    console.log("Mensagem recebida com app aberto:", payload);
+                    window.playAlertSound();
+                    const toast = document.getElementById('new-ride-toast');
+                    if(toast) {
+                        toast.classList.add('show');
+                        setTimeout(() => toast.classList.remove('show'), 5000);
+                    }
+                });
+                
+                const firstLetter = loggedDriver.name ? loggedDriver.name.charAt(0).toUpperCase() : 'E';
+                document.getElementById('drv-avatar').src = `https://ui-avatars.com/api/?name=${firstLetter}&background=ea1d2c&color=fff&bold=true`;
+                
+                // Preenche os dados na aba Mais
+                document.getElementById('mais-name').innerText = loggedDriver.name || "Entregador";
+                document.getElementById('mais-email').innerText = loggedDriver.email || "";
+                document.getElementById('mais-city').innerText = loggedDriver.city || "Sua Cidade";
+                document.getElementById('mais-avatar').innerText = firstLetter;
+                
+                // INICIALIZAR MAPA LEAFLET DA TELA INICIAL
+                initMap();
+
+                await loadStoresCache();
+                startListeners();
+
+                // Status Online/Offline
+                onSnapshot(doc(db, "drivers", loggedDriver.id), (docSnap) => {
+                    if(docSnap.exists()){
+                        const data = docSnap.data();
+                        isOnline = (data.isOnline === true || data.isOnline === "true");
+                        document.getElementById('driver-status-toggle').checked = isOnline;
+                        
+                        const pill = document.getElementById('pill-toggle');
+                        const searchingPill = document.getElementById('pill-searching');
+                        const maisStatusBadge = document.getElementById('mais-status-badge');
+                        const maisStatusText = document.getElementById('mais-status-text');
+                        
+                        if (isOnline) {
+                            pill.classList.add('online');
+                            pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" checked onchange="window.toggleOnlineStatus()"><span>Disponível</span>';
+                            searchingPill.style.display = 'flex'; 
+                            
+                            maisStatusBadge.classList.remove('offline');
+                            maisStatusText.innerText = "Disponível";
+                        } else {
+                            pill.classList.remove('online');
+                            pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" onchange="window.toggleOnlineStatus()"><span>⚪ Indisponível</span>';
+                            searchingPill.style.display = 'none';
+                            
+                            maisStatusBadge.classList.add('offline');
+                            maisStatusText.innerText = "Indisponível";
+                        }
+                        
+                        updateScreensFlow();
+                    }
+                });
+            }
+        };
+
+        function initMap() {
+            const mapContainer = document.getElementById('map-container');
+            if(!mapContainer) return;
+            
+            window.appMap = L.map('map-container', {zoomControl: false}).setView([window.driverLat, window.driverLon], 4);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(window.appMap);
+
+            const motoIcon = L.divIcon({
+                html: '<div style="font-size: 40px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); text-align: center; line-height: 1;">🛵</div>',
+                className: '', iconSize: [40, 40], iconAnchor: [20, 40]
+            });
+
+            window.driverMarker = L.marker([window.driverLat, window.driverLon], {icon: motoIcon}).addTo(window.appMap);
+
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    window.driverLat = pos.coords.latitude;
+                    window.driverLon = pos.coords.longitude;
+                    
+                    window.driverMarker.setLatLng([window.driverLat, window.driverLon]);
+                    window.appMap.setView([window.driverLat, window.driverLon], 16);
+                    
+                    // Se o mapa da rota já existir, atualiza o motoqueiro lá também
+                    if(window.rotaDriverMarker) {
+                        window.rotaDriverMarker.setLatLng([window.driverLat, window.driverLon]);
+                    }
+                }, err => {
+                    console.log("GPS Blocked or unavailable", err);
+                }, {enableHighAccuracy: true});
+            }
+        }
+
+        window.centerMap = () => {
+            if(navigator.geolocation && window.appMap && window.driverMarker) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    window.appMap.setView([pos.coords.latitude, pos.coords.longitude], 16);
+                });
+            }
+        };
+
+        window.loginDriver = async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+            const btn = document.querySelector('.btn-login');
+            try {
+                btn.innerText = "Entrando...";
+                const q = query(collection(db, "drivers"), where("email", "==", email), where("password", "==", pass));
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    btn.innerText = "Entrar";
+                    return alert("E-mail ou senha incorretos.");
+                }
+                loggedDriver = { id: snap.docs[0].id, ...snap.docs[0].data() };
+                localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
+                window.location.reload();
+            } catch(e) {
+                btn.innerText = "Entrar";
+                alert("Erro ao logar. Verifique sua internet.");
+            }
+        };
+
+        // BOTAO SAIR COM A CORREÇÃO
+        window.logoutDriver = async () => {
+            if(confirm("Deseja sair da sua conta?")) {
+                try {
+                    // Tenta ficar offline no banco de dados
+                    if(loggedDriver) await updateDoc(doc(db, "drivers", loggedDriver.id), { isOnline: false });
+                } catch(e) {
+                    console.log("Erro ao ficar offline (ignorado):", e);
+                } finally {
+                    // Limpa os dados do celular e desloga de qualquer jeito
+                    localStorage.removeItem('loggedDriver');
+                    window.location.reload(); 
+                }
+            }
+        };
+
+        window.toggleOnlineStatus = async () => {
+            isOnline = !isOnline; 
+            if(loggedDriver) await updateDoc(doc(db, "drivers", loggedDriver.id), { isOnline: isOnline });
+        };
+
+        window.switchTab = (tab) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.getElementById(`sec-${tab}`).classList.add('active');
+            
+            const header = document.getElementById('main-header');
+            if(tab === 'inicio') {
+                header.style.display = 'flex';
+                updateScreensFlow();
+                setTimeout(() => { if(window.appMap) window.appMap.invalidateSize(); }, 150);
+            } else {
+                header.style.display = 'none';
+            }
+
+            if(tab === 'em-rota') {
+                setTimeout(() => { if(window.rotaMap) window.rotaMap.invalidateSize(); }, 150);
+            }
+
+            if(tab === 'extrato') window.renderHistoryOrders();
+        };
+
+        async function loadStoresCache() {
+            const snap = await getDocs(collection(db, "stores"));
+            snap.forEach(doc => { storesCache[doc.id] = doc.data(); });
+        }
+
+        function startListeners() {
+            onSnapshot(collection(db, "orders"), (snapshot) => {
+                let tempPending = [];
+                let drCity = (loggedDriver.city || "").toLowerCase().split('-')[0].trim();
+
+                snapshot.forEach(docSnap => {
+                    const order = { id: docSnap.id, ...docSnap.data() };
+                    if (order.status === "Aguardando Entregador") {
+                        const store = storesCache[order.storeId] || {};
+                        const stCity = (store.city || "").toLowerCase().split('-')[0].trim();
+                        if (!drCity || stCity === drCity) tempPending.push(order);
+                    }
+                });
+
+                if(isOnline && tempPending.length > availableCount) {
+                    window.playAlertSound();
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        new Notification("UaiPede Entregas", { body: "🚀 Nova rota disponível!" });
+                    }
+                }
+                allPendingOrders = tempPending;
+                availableCount = allPendingOrders.length;
+                updateScreensFlow();
+            });
+
+            onSnapshot(query(collection(db, "orders"), where("driverId", "==", loggedDriver.id)), (snapshot) => {
+                myAcceptedOrders = []; myHistoryOrders = [];
+                snapshot.forEach(docSnap => {
+                    const order = { id: docSnap.id, ...docSnap.data() };
+                    if (order.status === 'Saiu para Entrega') myAcceptedOrders.push(order);
+                    if (['Concluído', 'Concluido', 'Entregue'].includes(order.status)) myHistoryOrders.push(order);
+                });
+                renderMyOrders();
+                updateHomeStats();
+                if(document.getElementById('sec-extrato').classList.contains('active')) window.renderHistoryOrders();
+            });
+        }
+
+        function updateScreensFlow() {
+            const viewOffline = document.getElementById('view-offline-gains');
+            const viewFound = document.getElementById('view-found-orders');
+
+            if (!isOnline || allPendingOrders.length === 0) {
+                viewOffline.style.display = 'block';
+                viewFound.style.display = 'none';
+                window.closeOrderList();
+            } else {
+                viewOffline.style.display = 'none';
+                viewFound.style.display = 'block';
+                document.getElementById('home-orders-count').innerText = `${allPendingOrders.length} >`;
+                renderOrderListModal();
+            }
+        }
+
+        function updateHomeStats() {
+            const today = new Date().toISOString().split('T')[0];
+            const filterStart = new Date(today + 'T00:00:00').getTime();
+            const filterEnd = filterStart + 86400000;
+            
+            const todayCompleted = myHistoryOrders.filter(o => {
+                const t = o.deliveredAt || o.timestamp;
+                return t >= filterStart && t < filterEnd;
+            });
+            let todayGains = 0;
+            todayCompleted.forEach(o => todayGains += parseFloat(o.platformDriverFee || 5));
+
+            const valStr = `R$ ${todayGains.toFixed(2).replace('.',',')}`;
+            document.getElementById('home-earnings').innerText = valStr;
+            document.getElementById('home-earnings-2').innerText = valStr;
+            
+            const totalRotas = myAcceptedOrders.length + todayCompleted.length;
+            document.getElementById('home-accepted').innerText = totalRotas;
+            document.getElementById('home-accepted-2').innerText = totalRotas;
+        }
+
+        window.openOrderList = () => { document.getElementById('orders-list-modal').classList.add('active'); };
+        window.closeOrderList = () => { document.getElementById('orders-list-modal').classList.remove('active'); };
+
+        function renderOrderListModal() {
+            const container = document.getElementById('list-modal-render');
+            container.innerHTML = allPendingOrders.map(order => {
+                const store = storesCache[order.storeId] || {};
+                const mockedDistance = (Math.random() * 5 + 1).toFixed(1);
+                const price = (order.platformDriverFee || 5).toFixed(2).replace('.',',');
+                
+                return `
+                <div class="order-list-item" onclick="window.openOrderDetails('${order.id}')">
+                    <div class="oli-details">
+                        <h4>${store.name || order.storeName}</h4>
+                        <span>R$ ${price} • ${mockedDistance} km</span>
+                    </div>
+                    <div class="oli-arrow">></div>
+                </div>`;
+            }).join('');
+        }
+
+        window.openOrderDetails = (id) => {
+            const order = allPendingOrders.find(o => o.id === id);
+            if(!order) return;
+
+            const store = storesCache[order.storeId] || {};
+            let storeAddress = store.street || "Endereço não informado";
+            if (store.city) storeAddress += ` - ${store.city}`;
+            
+            const mockedDistance = (Math.random() * 5 + 1).toFixed(1);
+            const mockedTime = Math.floor(Math.random() * 15 + 10);
+
+            document.getElementById('det-price-val').innerText = `R$ ${(order.platformDriverFee || 5).toFixed(2).replace('.',',')}`;
+            document.getElementById('det-dist').innerText = `${mockedDistance} km`;
+            document.getElementById('det-time').innerText = `${mockedTime} min`;
+            
+            document.getElementById('det-store-name').innerText = `Coleta • ${store.name || order.storeName}`;
+            document.getElementById('det-store-addr').innerText = storeAddress;
+            document.getElementById('det-cust-addr').innerText = order.customer.address;
+            document.getElementById('det-pay-method').innerText = order.paymentMethod || 'Maquininha / Dinheiro';
+
+            document.getElementById('order-details-modal').classList.add('active');
+            document.getElementById('btn-accept-route').onclick = () => window.acceptOrder(order.id);
+        };
+
+        window.closeOrderDetails = () => { document.getElementById('order-details-modal').classList.remove('active'); };
+
+        // Função assíncrona para buscar as coordenadas usando a API gratuita do OpenStreetMap
+        async function geocodeAddress(address) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+                }
+            } catch(e) {
+                console.error("Erro na geocodificação:", e);
+            }
+            return null;
+        }
+
+        function renderMyOrders() {
+            const container = document.getElementById('my-rides-list');
+            const noMsg = document.getElementById('no-active-msg');
+            const mapRotaContainer = document.getElementById('map-rota-container');
+            const topBadge = document.getElementById('rota-top-badge');
+
+            if (myAcceptedOrders.length === 0) {
+                noMsg.style.display = 'block';
+                container.innerHTML = '';
+                mapRotaContainer.style.display = 'none';
+                topBadge.style.display = 'none';
+                return;
+            }
+
+            noMsg.style.display = 'none';
+            mapRotaContainer.style.display = 'block';
+            topBadge.style.display = 'block';
+            
+            container.innerHTML = myAcceptedOrders.map(order => {
+                const store = storesCache[order.storeId] || {};
+                let storeAddress = store.street || "Endereço da loja não informado";
+                if (store.city) storeAddress += ` - ${store.city}`;
+                const qCust = encodeURIComponent(order.customer.address + ', ' + (loggedDriver.city || ""));
+                
+                return `
+                <div class="rota-card">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid #f0f0f0; padding-bottom:15px;">
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-weight:900; color:#ea1d2c; font-size:0.8rem; text-transform:uppercase;">Rota em andamento</span>
+                            <span style="font-size:0.8rem; color:#777; margin-top:2px;">#${order.id.substring(0,5).toUpperCase()}</span>
+                        </div>
+                        <strong style="font-size:1.4rem; color:#00a14b;">R$ ${(order.platformDriverFee || 5).toFixed(2).replace('.',',')}</strong>
+                    </div>
+                    
+                    <div style="display:flex; gap:12px; margin-bottom:20px;">
+                        <span style="font-size:1.2rem; width:24px; text-align:center;">🏬</span>
+                        <div><strong style="font-size:0.95rem; color:#111;">Coleta • ${order.storeName}</strong><p style="font-size:0.85rem; color:#717171; margin-top:2px;">${storeAddress}</p></div>
+                    </div>
+                    
+                    <div style="display:flex; gap:12px; margin-bottom:25px;">
+                        <span style="font-size:1.2rem; width:24px; text-align:center;">📍</span>
+                        <div><strong style="font-size:0.95rem; color:#111;">Entrega</strong><p style="font-size:0.85rem; color:#717171; margin-top:2px;">${order.customer.address}</p></div>
+                    </div>
+                    
+                    <button class="btn-waze" onclick="window.open('https://waze.com/ul?q=${qCust}&navigate=yes', '_blank')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                        Abrir no Waze
+                    </button>
+                    <button class="btn-concluir" onclick="window.finishDelivery('${order.id}')">Concluir Entrega</button>
+                </div>`;
+            }).join('');
+
+            if (!window.rotaMap) {
+                window.rotaMap = L.map('map-rota-container', {zoomControl: false}).setView([window.driverLat, window.driverLon], 14);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(window.rotaMap);
+                
+                window.rotaDriverMarker = L.marker([window.driverLat, window.driverLon], {
+                    icon: L.divIcon({html: '<div style="font-size:35px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">🛵</div>', className: '', iconSize: [35,35], iconAnchor: [17,35]})
+                }).addTo(window.rotaMap);
+
+                window.storeMarker = L.marker([0,0], {
+                    icon: L.divIcon({html: '<div style="font-size:30px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">🏬</div>', className: '', iconSize: [30,30], iconAnchor: [15,30]})
+                }).addTo(window.rotaMap);
+
+                window.customerMarker = L.marker([0,0], {
+                    icon: L.divIcon({html: '<div style="font-size:30px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">📍</div>', className: '', iconSize: [30,30], iconAnchor: [15,30]})
+                }).addTo(window.rotaMap);
+                
+                window.routeLine = L.polyline([], {color: '#0d6efd', weight: 5, dashArray: '10, 10'}).addTo(window.rotaMap);
+            }
+
+            // Pega o primeiro pedido para renderizar no mapa
+            const order = myAcceptedOrders[0];
+            const store = storesCache[order.storeId] || {};
+            
+            // Adicionando Doresópolis, MG como fallback para garantir precisão do mapa local
+            const searchStoreAddress = (store.street || order.storeName) + (store.city ? `, ${store.city}` : ', Doresópolis, MG');
+            const searchCustAddress = order.customer.address + (loggedDriver.city ? `, ${loggedDriver.city}` : ', Doresópolis, MG');
+
+            // Busca as coordenadas reais e plota no mapa assincronamente
+            (async () => {
+                const storeCoords = await geocodeAddress(searchStoreAddress);
+                const custCoords = await geocodeAddress(searchCustAddress);
+
+                const finalStoreLat = storeCoords ? storeCoords[0] : window.driverLat + 0.003;
+                const finalStoreLon = storeCoords ? storeCoords[1] : window.driverLon + 0.003;
+                const finalCustLat = custCoords ? custCoords[0] : window.driverLat - 0.005;
+                const finalCustLon = custCoords ? custCoords[1] : window.driverLon - 0.001;
+
+                window.storeMarker.setLatLng([finalStoreLat, finalStoreLon]);
+                window.customerMarker.setLatLng([finalCustLat, finalCustLon]);
+                window.rotaDriverMarker.setLatLng([window.driverLat, window.driverLon]);
+                
+                window.routeLine.setLatLngs([
+                    [window.driverLat, window.driverLon],
+                    [finalStoreLat, finalStoreLon],
+                    [finalCustLat, finalCustLon]
+                ]);
+                
+                setTimeout(() => {
+                    window.rotaMap.invalidateSize();
+                    // Foca a câmera para que todos os pontos fiquem visíveis, ignorando as margens do cartão inferior
+                    window.rotaMap.fitBounds(window.routeLine.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 350]}); 
+                }, 300);
+            })();
+        }
+
+        window.renderHistoryOrders = () => {
+            const container = document.getElementById('history-rides-list');
+            const filterDateStr = document.getElementById('filter-date-extrato').value;
+            
+            let filteredHistory = myHistoryOrders;
+
+            if (filterDateStr) {
+                const parts = filterDateStr.split('-');
+                const startOfDay = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+                const endOfDay = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+
+                filteredHistory = myHistoryOrders.filter(o => {
+                    const t = o.deliveredAt || o.timestamp;
+                    return t >= startOfDay && t <= endOfDay;
+                });
+            }
+
+            filteredHistory.sort((a, b) => (b.deliveredAt || b.timestamp) - (a.deliveredAt || a.timestamp));
+            
+            let total = 0;
+            const list = filteredHistory.map(o => {
+                const fee = parseFloat(o.platformDriverFee || 5);
+                total += fee;
+                
+                const d = new Date(o.deliveredAt || o.timestamp);
+                const day = String(d.getDate()).padStart(2, '0');
+                const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+                const month = months[d.getMonth()];
+                const time = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+                return `
+                <div class="repasse-item">
+                    <div class="rep-left">
+                        <div class="rep-icon green"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
+                        <div class="rep-info">
+                            <strong>Repasse pago</strong>
+                            <span>${day} de ${month} • ${time}</span>
+                        </div>
+                    </div>
+                    <div class="rep-right green">R$ ${fee.toFixed(2).replace('.',',')}</div>
+                </div>`;
+            }).join('');
+            
+            document.getElementById('hist-total-val').innerText = `R$ ${total.toFixed(2).replace('.',',')}`;
+            container.innerHTML = list || '<div style="text-align:center; color:#999; padding:20px;">Nenhum repasse neste dia.</div>';
+        };
+
+        window.acceptOrder = async (id) => {
+            document.getElementById('btn-accept-route').innerText = "Aguarde...";
+            await updateDoc(doc(db, "orders", id), { status: 'Saiu para Entrega', driverId: loggedDriver.id, driverName: loggedDriver.name, driverPhone: loggedDriver.phone || "" });
+            window.closeOrderDetails();
+            window.closeOrderList();
+            window.switchTab('em-rota');
+        };
+
+        window.finishDelivery = async (id) => {
+            if(confirm("Confirmar entrega ao cliente?")) {
+                await updateDoc(doc(db, "orders", id), { status: 'Concluído', deliveredAt: Date.now() });
+                window.switchTab('extrato');
+            }
+        };
+
+        // Funções da aba de Perfil
+        window.editDriverName = async () => {
+            const newName = prompt("Digite seu novo nome:", loggedDriver.name);
+            if(newName && newName.trim() !== "") {
+                try {
+                    await updateDoc(doc(db, "drivers", loggedDriver.id), { name: newName.trim() });
+                    loggedDriver.name = newName.trim();
+                    localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
+                    document.getElementById('mais-name').innerText = loggedDriver.name;
+                    alert("Nome atualizado com sucesso!");
+                } catch (e) {
+                    alert("Erro ao atualizar nome. Verifique sua conexão.");
+                }
+            }
+        };
+
+        window.resetDriverPassword = async () => {
+            const newPass = prompt("Digite a sua nova senha de acesso:");
+            if(newPass && newPass.trim() !== "") {
+                try {
+                    await updateDoc(doc(db, "drivers", loggedDriver.id), { password: newPass.trim() });
+                    loggedDriver.password = newPass.trim();
+                    localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
+                    alert("Senha alterada com sucesso!");
+                } catch (e) {
+                    alert("Erro ao alterar a senha. Verifique sua conexão.");
+                }
+            }
+        };
+
+        window.playAlertSound = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(); osc.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5); } catch(e){} };
+    </script>
+</body>
+</html>

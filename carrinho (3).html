@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrinho - Dores Delivery</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background-color: #f8f8f8; color: #3e3e3e; padding-bottom: 90px; }
+
+        /* HEADER */
+        header { background: #fff; padding: 20px; text-align: center; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+        .back-btn { position: absolute; left: 20px; font-size: 1.5rem; color: #ea1d2c; text-decoration: none; font-weight: bold; }
+        header h1 { font-size: 1.2rem; font-weight: 900; color: #111; text-transform: uppercase; letter-spacing: 0.5px;}
+
+        .container { padding: 15px; max-width: 600px; margin: 0 auto;}
+
+        /* ESTADO VAZIO */
+        .empty-cart { text-align: center; padding: 60px 20px; display: none; }
+        .empty-cart span { font-size: 3rem; display: block; margin-bottom: 15px; }
+        .empty-cart h3 { color: #111; margin-bottom: 10px; font-size: 1.2rem; font-weight: 900;}
+        .empty-cart p { color: #717171; margin-bottom: 20px; font-size: 0.95rem; }
+        .btn-primary { background: #ea1d2c; color: #fff; border: none; padding: 14px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; width: 100%; text-align: center; display: inline-block; text-decoration: none; cursor: pointer; transition: 0.2s; }
+        .btn-primary:active { background: #c81824; transform: scale(0.98); }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* LISTA DE ITENS */
+        .cart-list { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #f2f2f2;}
+        .store-header { font-weight: 900; color: #ea1d2c; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 1.1rem;}
+        .cart-item { display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #eee; }
+        .cart-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        
+        .item-qty { font-weight: 900; color: #ea1d2c; margin-right: 10px; }
+        .item-info { flex-grow: 1; }
+        .item-name { font-weight: 700; color: #333; margin-bottom: 4px; font-size: 1rem;}
+        .item-details { font-size: 0.85rem; color: #777; line-height: 1.4; }
+        .item-price { font-weight: 900; color: #111; margin-left: 10px; font-size: 1.05rem;}
+        .btn-remove { background: none; border: none; color: #ea1d2c; font-size: 0.8rem; cursor: pointer; margin-top: 5px; font-weight: bold; text-decoration: underline;}
+
+        /* RESUMO DE VALORES */
+        .summary-card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #f2f2f2;}
+        .summary-line { display: flex; justify-content: space-between; font-size: 0.95rem; color: #555; margin-bottom: 10px; font-weight: 500;}
+        .summary-total { display: flex; justify-content: space-between; font-size: 1.2rem; color: #ea1d2c; font-weight: 900; margin-top: 10px; padding-top: 15px; border-top: 1px dashed #eee; }
+
+        /* ÁREA DO CUPOM E LISTA */
+        .coupon-section { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; }
+        .coupon-input-group { display: flex; gap: 10px; }
+        .coupon-input-group input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; text-transform: uppercase; font-size: 0.95rem; outline: none; background: #f9f9f9;}
+        .coupon-input-group input:focus { border-color: #ea1d2c; background: #fff;}
+        .btn-coupon { background: #111; color: #fff; border: none; padding: 0 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-coupon:active { background: #000; transform: scale(0.95); }
+        #coupon-message { font-size: 0.85rem; margin-top: 10px; display: none; font-weight: bold; }
+        .btn-remove-coupon { background: none; border: none; color: #ea1d2c; text-decoration: underline; font-size: 0.8rem; cursor: pointer; margin-left: 10px; }
+
+        .btn-show-coupons { width: 100%; padding: 12px; border: 1px dashed #ea1d2c; background: #fff5f5; color: #ea1d2c; font-weight: bold; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; font-size: 0.95rem; margin-top: 15px;}
+        .btn-show-coupons:active { background: #ffebeb; transform: scale(0.98);}
+        
+        .available-coupons-container { margin-top: 10px; display: none; flex-direction: column; gap: 8px; }
+
+        /* FORMS E SEÇÕES */
+        .checkout-section { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #f2f2f2;}
+        .checkout-section h3 { font-size: 1.05rem; font-weight: 900; color: #111; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        
+        .delivery-methods { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn-method { flex: 1; padding: 14px 10px; border: 1px solid #ddd; background: #f9f9f9; border-radius: 12px; font-weight: bold; color: #555; font-size: 0.9rem; cursor: pointer; transition: 0.2s; }
+        .btn-method.active { background: #fff5f5; border-color: #ea1d2c; color: #ea1d2c; box-shadow: 0 2px 8px rgba(234,29,44,0.15);}
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; background: #fdfdfd; transition: 0.2s;}
+        .form-group input:focus { border-color: #ea1d2c; background: #fff; }
+        .row { display: flex; gap: 10px; }
+        .row .form-group { flex: 1; }
+
+        .pickup-info { display: none; background: #fff5f5; border: 1px dashed #ea1d2c; padding: 15px; border-radius: 12px; color: #ea1d2c; font-size: 0.9rem; line-height: 1.5; }
+        .pickup-address-box { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #fbd5d5; margin-top: 10px; color: #333; font-weight: bold; font-size: 0.95rem; }
+
+        .payment-options { display: flex; flex-direction: column; gap: 10px; }
+        .pay-label { display: flex; align-items: center; gap: 10px; padding: 14px; border: 1px solid #ddd; border-radius: 12px; cursor: pointer; transition: 0.2s; background: #f9f9f9; font-weight: bold; color: #555;}
+        .pay-label:hover { background: #fff; }
+        .pay-label input[type="radio"] { accent-color: #ea1d2c; transform: scale(1.3); }
+        .pay-label:has(input:checked) { border-color: #ea1d2c; background: #fff5f5; color: #ea1d2c; }
+        
+        #change-container { display: none; margin-top: 15px; padding: 15px; background: #fef0f0; border: 1px dashed #fbd5d5; border-radius: 12px; }
+        #change-container label { font-size: 0.85rem; color: #ea1d2c; font-weight: bold; display: block; margin-bottom: 8px; }
+        
+        #pix-container { display: none; margin-top: 15px; padding: 15px; background: #fdf5e6; border: 1px dashed #f9e1b5; border-radius: 12px; }
+        #pix-container label { font-size: 0.85rem; color: #997404; font-weight: bold; display: block; margin-bottom: 8px; }
+
+        .login-alert { background: #fff3cd; color: #856404; padding: 15px; border-radius: 12px; border: 1px solid #ffeeba; text-align: center; margin-bottom: 15px; font-size: 0.95rem; font-weight: 500;}
+
+        /* BOTÃO FINALIZAR FIXO E ALERTA DE PEDIDO MÍNIMO */
+        .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; padding: 15px; border-top: 1px solid #eee; z-index: 100; padding-bottom: calc(15px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 10px rgba(0,0,0,0.05); }
+        .btn-checkout { width: 100%; max-width: 600px; margin: 0 auto; background: #ea1d2c; color: #fff; border: none; padding: 16px 20px; border-radius: 12px; font-weight: 900; font-size: 1.1rem; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;}
+        .btn-checkout:active { transform: scale(0.98); }
+        .btn-checkout:disabled { background: #ccc; cursor: not-allowed; opacity: 0.7; }
+        
+        #min-order-alert { display: none; color: #ea1d2c; font-size: 0.85rem; font-weight: bold; text-align: center; margin: 0 auto 10px auto; background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px dashed #fbd5d5; max-width: 600px;}
+
+        /* MODAL DE CUPONS */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: none; align-items: flex-end; justify-content: center; }
+        .modal-content { background: #fff; width: 100%; max-width: 600px; max-height: 85vh; border-radius: 20px 20px 0 0; padding: 25px; overflow-y: auto; animation: slideUp 0.3s; position: relative; padding-bottom: calc(25px + env(safe-area-inset-bottom)); }
+        
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="back-btn">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+        <h1>Meu Carrinho</h1>
+    </header>
+
+    <main class="container">
+        
+        <div id="empty-state" class="empty-cart">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 15px;"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+            <h3>Sua sacola está vazia</h3>
+            <p>Adicione itens de uma loja para poder finalizar seu pedido.</p>
+            <a href="index.html" class="btn-primary" style="margin-top: 10px;">Ver Lojas Disponíveis</a>
+        </div>
+
+        <div id="cart-content" style="display: none;">
+            
+            <div class="cart-list">
+                <div class="store-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> 
+                    <span id="cart-store-name">Nome da Loja</span>
+                </div>
+                <div id="cart-items-container"></div>
+            </div>
+
+            <div class="summary-card">
+                <div class="summary-line">
+                    <span>Subtotal</span>
+                    <span id="subtotal-val">R$ 0,00</span>
+                </div>
+                <div class="summary-line">
+                    <span>Taxa de Entrega</span>
+                    <span id="delivery-fee-val" style="color: #777;">Calculando...</span>
+                </div>
+                
+                <div class="summary-line" id="discount-line" style="display: none; color: #00a14b; font-weight: bold;">
+                    <span>Desconto <span id="discount-badge" style="background:#e6f4ea; padding:2px 6px; border-radius:4px; font-size:0.75rem; border:1px solid #badbcc; margin-left: 6px;">CUPOM</span></span>
+                    <span id="discount-val">- R$ 0,00</span>
+                </div>
+
+                <div class="summary-total">
+                    <span>Total</span>
+                    <span id="total-val">R$ 0,00</span>
+                </div>
+
+                <div class="coupon-section">
+                    <div class="coupon-input-group" id="coupon-input-group">
+                        <input type="text" id="coupon-code" placeholder="CÓDIGO DO CUPOM">
+                        <button class="btn-coupon" onclick="window.applyCoupon()">Aplicar</button>
+                    </div>
+                    <div id="coupon-message"></div>
+
+                    <button id="show-coupons-toggle" class="btn-show-coupons" onclick="window.openCouponsModal()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                        Ver cupons disponíveis nesta loja
+                    </button>
+                </div>
+
+            </div>
+
+            <div id="login-alert" class="login-alert" style="display: none;">
+                <strong>Quase lá!</strong><br>
+                Você precisa estar logado para finalizar o pedido.<br><br>
+                <button class="btn-primary" onclick="window.location.href='login.html'">Fazer Login ou Criar Conta</button>
+            </div>
+
+            <div id="checkout-form" style="display: none;">
+                
+                <div class="checkout-section">
+                    <h3>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea1d2c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        Como deseja receber?
+                    </h3>
+                    <div class="delivery-methods">
+                        <button id="btn-method-entrega" class="btn-method active" onclick="window.setDeliveryMethod('entrega')">🛵 Quero Entrega</button>
+                        <button id="btn-method-retirada" class="btn-method" onclick="window.setDeliveryMethod('retirada')">🚶‍♂️ Vou Retirar na Loja</button>
+                    </div>
+
+                    <div id="address-container">
+                        <div class="form-group">
+                            <label>Rua / Avenida</label>
+                            <input type="text" id="end-rua" placeholder="Ex: Rua das Flores">
+                        </div>
+                        <div class="row">
+                            <div class="form-group" style="flex: 0.4;">
+                                <label>Número</label>
+                                <input type="text" id="end-num" placeholder="Ex: 123">
+                            </div>
+                            <div class="form-group" style="flex: 0.6;">
+                                <label>Bairro</label>
+                                <input type="text" id="end-bairro" placeholder="Ex: Centro">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group" style="flex: 1;">
+                                <label>Cidade</label>
+                                <input type="text" id="end-cidade" placeholder="Sua Cidade">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Complemento (Opcional)</label>
+                                <input type="text" id="end-comp" placeholder="Ex: Apto 2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pickup-container" class="pickup-info">
+                        <strong>📍 Você escolheu Retirada no Local</strong><br><br>
+                        Não será cobrada taxa de entrega. Vá até o estabelecimento abaixo para retirar o seu pedido quando estiver pronto:
+                        <div class="pickup-address-box"><span id="store-full-address">Carregando endereço da loja...</span></div>
+                    </div>
+                </div>
+
+                <div class="checkout-section">
+                    <h3>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea1d2c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                        Forma de Pagamento
+                    </h3>
+                    <p style="font-size: 0.85rem; color: #777; margin-bottom: 15px;">Você paga diretamente ao entregador ou no balcão.</p>
+                    
+                    <div class="payment-options">
+                        <label class="pay-label"><input type="radio" name="pay-method" value="Pix" checked onchange="window.toggleChange()"><span>Pix</span></label>
+                        <label class="pay-label"><input type="radio" name="pay-method" value="Cartão de Crédito ou Débito" onchange="window.toggleChange()"><span>Cartão de Crédito ou Débito</span></label>
+                        <label class="pay-label"><input type="radio" name="pay-method" value="Dinheiro" onchange="window.toggleChange()"><span>Dinheiro Vivo</span></label>
+                    </div>
+                    
+                    <div id="change-container">
+                        <label>Vai precisar de troco para qual nota?</label>
+                        <input type="number" id="change-amount" class="form-input" placeholder="Ex: 50 (Deixe em branco se tiver o valor exato)">
+                    </div>
+
+                    <div id="pix-container">
+                        <label>Chave PIX da Loja:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <div id="store-pix-key" style="flex: 1; padding: 12px; background: #fff; border: 1px solid #f9e1b5; border-radius: 8px; font-weight: 900; color: #333; word-break: break-all; display: flex; align-items: center;">Carregando...</div>
+                            <button onclick="window.copyPixKey()" style="background: #997404; color: #fff; border: none; border-radius: 8px; padding: 0 15px; font-weight: bold; cursor: pointer; transition: 0.2s;">Copiar</button>
+                        </div>
+                        <div style="font-size: 0.75rem; color: #777; margin-top: 10px; line-height: 1.4;">Faça a transferência para esta chave e apresente o comprovante ao receber o seu pedido. A loja também confirmará no painel dela.</div>
+                    </div>
+
+                </div>
+
+                <div style="height: 60px;"></div> 
+            </div>
+        </div>
+
+        <div class="bottom-bar" id="bottom-bar-checkout" style="display: none;">
+            
+            <div id="min-order-alert"></div>
+            
+            <button class="btn-checkout" id="btn-finish" onclick="window.finishOrder()">
+                <span>Confirmar Pedido</span>
+                <span id="btn-checkout-total">R$ 0,00</span>
+            </button>
+        </div>
+    </main>
+
+    <div id="coupons-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem; font-weight: 900; color: #111;">Cupons Disponíveis</h3>
+                <button onclick="window.closeCouponsModal()" style="background: none; border: none; font-size: 1.5rem; color: #999; cursor: pointer;">✕</button>
+            </div>
+
+            <div id="coupons-list-container" style="display: flex; flex-direction: column; gap: 15px;">
+                <p style="text-align:center; color:#999; padding: 20px;">Buscando cupons...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, doc, getDoc, query, where, getDocs, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
+            authDomain: "dores-delivery.firebaseapp.com",
+            projectId: "dores-delivery",
+            storageBucket: "dores-delivery.firebasestorage.app",
+            messagingSenderId: "1029498697239",
+            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+        let finalTotal = 0;
+        let subtotalStore = 0;
+        
+        let originalDeliveryFee = 0; 
+        let currentDeliveryFee = 0;  
+        let currentMethod = 'entrega'; 
+
+        let appliedCoupon = null;
+        let discountAmount = 0;
+
+        const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
+        const isLogged = !!loggedCustomer || localStorage.getItem('isLogged') === 'true'; 
+        const userName = loggedCustomer ? loggedCustomer.name : (localStorage.getItem('userName') || 'Cliente');
+        const userEmail = loggedCustomer ? loggedCustomer.email : (localStorage.getItem('userEmail') || '');
+
+        let storeDataCache = null;
+
+        window.onload = async () => {
+            if (cart.length === 0) {
+                document.getElementById('empty-state').style.display = 'block';
+                document.getElementById('cart-content').style.display = 'none';
+                return;
+            }
+            document.getElementById('cart-content').style.display = 'block';
+
+            if (userEmail) {
+                try {
+                    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
+                    const userSnap = await getDocs(userQ);
+                    if (!userSnap.empty) {
+                        const userData = userSnap.docs[0].data();
+                        
+                        if (userData.address) {
+                            if (typeof userData.address === 'object') {
+                                document.getElementById('end-rua').value = userData.address.rua || '';
+                                document.getElementById('end-num').value = userData.address.num || '';
+                                document.getElementById('end-bairro').value = userData.address.bairro || '';
+                                document.getElementById('end-cidade').value = userData.city || userData.address.cidade || '';
+                                document.getElementById('end-comp').value = userData.address.comp || '';
+                            } 
+                            else if (typeof userData.address === 'string') {
+                                const parts = userData.address.split(',');
+                                document.getElementById('end-rua').value = parts[0] ? parts[0].trim() : '';
+                                if (parts.length > 1) {
+                                    document.getElementById('end-bairro').value = parts[1].trim();
+                                }
+                                document.getElementById('end-cidade').value = userData.city || '';
+                            }
+                        } else if (userData.city) {
+                            document.getElementById('end-cidade').value = userData.city;
+                        }
+                    }
+                } catch(e) {
+                    console.error("Erro ao buscar endereço do usuário:", e);
+                }
+            } 
+            else if (loggedCustomer) {
+                if (loggedCustomer.address && typeof loggedCustomer.address === 'string') {
+                    const parts = loggedCustomer.address.split(',');
+                    if(parts[0]) document.getElementById('end-rua').value = parts[0].trim();
+                    if(parts[1]) document.getElementById('end-bairro').value = parts[1].trim();
+                }
+                if (loggedCustomer.city) {
+                    document.getElementById('end-cidade').value = loggedCustomer.city;
+                }
+            }
+
+            try {
+                const storeId = cart[0].storeId;
+                const storeSnap = await getDoc(doc(db, "stores", storeId));
+                if (storeSnap.exists()) {
+                    storeDataCache = storeSnap.data();
+                    originalDeliveryFee = storeDataCache.deliveryFee || 0;
+                    currentDeliveryFee = originalDeliveryFee;
+
+                    if (storeDataCache.pixKey) {
+                        document.getElementById('store-pix-key').innerText = storeDataCache.pixKey;
+                    } else {
+                        document.getElementById('store-pix-key').innerText = "Loja sem chave cadastrada";
+                    }
+                }
+            } catch (e) { console.error("Erro ao buscar loja:", e); }
+
+            const savedCoupon = JSON.parse(sessionStorage.getItem('appliedCoupon'));
+            if(savedCoupon) {
+                document.getElementById('coupon-code').value = savedCoupon.code;
+            }
+
+            window.renderCart();
+            window.toggleChange(); 
+        };
+
+        window.toggleChange = () => {
+            const method = document.querySelector('input[name="pay-method"]:checked').value;
+            const changeBox = document.getElementById('change-container');
+            const pixBox = document.getElementById('pix-container');
+
+            if (method === 'Dinheiro') { 
+                changeBox.style.display = 'block'; 
+                pixBox.style.display = 'none';
+            } else if (method === 'Pix') {
+                changeBox.style.display = 'none'; 
+                document.getElementById('change-amount').value = '';
+                pixBox.style.display = 'block';
+            } else { 
+                changeBox.style.display = 'none'; 
+                document.getElementById('change-amount').value = '';
+                pixBox.style.display = 'none';
+            }
+        };
+
+        window.copyPixKey = () => {
+            const keyText = document.getElementById('store-pix-key').innerText;
+            if (keyText && keyText !== "Loja sem chave cadastrada") {
+                navigator.clipboard.writeText(keyText).then(() => {
+                    alert("Chave PIX copiada para a área de transferência!");
+                }).catch(() => {
+                    alert("Erro ao copiar chave.");
+                });
+            }
+        };
+
+        window.setDeliveryMethod = (method) => {
+            currentMethod = method;
+            const btnEntrega = document.getElementById('btn-method-entrega');
+            const btnRetirada = document.getElementById('btn-method-retirada');
+            const addrContainer = document.getElementById('address-container');
+            const pickupContainer = document.getElementById('pickup-container');
+
+            if(method === 'entrega') {
+                btnEntrega.classList.add('active'); btnRetirada.classList.remove('active');
+                addrContainer.style.display = 'block'; pickupContainer.style.display = 'none';
+                currentDeliveryFee = originalDeliveryFee; 
+            } else {
+                btnRetirada.classList.add('active'); btnEntrega.classList.remove('active');
+                addrContainer.style.display = 'none'; pickupContainer.style.display = 'block';
+                currentDeliveryFee = 0; 
+            }
+            window.updateTotalsUI();
+        };
+
+        window.openCouponsModal = async () => {
+            const storeId = cart[0].storeId;
+            const modal = document.getElementById('coupons-modal');
+            const container = document.getElementById('coupons-list-container');
+            
+            container.innerHTML = '<p style="text-align:center; color:#999; padding: 20px;">Buscando cupons disponíveis...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                let isSponsorAssociated = false;
+                if (userEmail) {
+                    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
+                    const userSnap = await getDocs(userQ);
+                    if (!userSnap.empty) {
+                        isSponsorAssociated = userSnap.docs[0].data().isSicoob === true;
+                    }
+                }
+
+                const storeCity = storeDataCache ? storeDataCache.city : null;
+                let availableCoupons = [];
+
+                const qLocal = query(collection(db, "coupons"), where("storeId", "==", storeId), where("active", "==", true));
+                const snapLocal = await getDocs(qLocal);
+                snapLocal.forEach(docC => {
+                    const c = docC.data();
+                    if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) {
+                        availableCoupons.push(c);
+                    }
+                });
+
+                if (storeCity) {
+                    const qGlobal = query(collection(db, "coupons"), where("storeId", "==", "GLOBAL"), where("targetCity", "==", storeCity), where("active", "==", true));
+                    const snapGlobal = await getDocs(qGlobal);
+                    snapGlobal.forEach(docC => {
+                        const c = docC.data();
+                        
+                        const isSicoobCoupon = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
+                        
+                        if (isSicoobCoupon && !isSponsorAssociated) {
+                            return; 
+                        }
+
+                        if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) {
+                            availableCoupons.push(c);
+                        }
+                    });
+                }
+
+                if (availableCoupons.length === 0) {
+                    container.innerHTML = '<div style="font-size:0.95rem; color:#777; padding: 20px; border: 1px dashed #ddd; border-radius: 12px; text-align: center;">Nenhum cupom disponível no momento.</div>';
+                    return;
+                }
+
+                container.innerHTML = availableCoupons.map(c => {
+                    const isGlobal = c.storeId === 'GLOBAL';
+                    const isSicoob = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
+
+                    let bgColor = '#ea1d2c';
+                    let bgStyle = 'background: linear-gradient(135deg, #ea1d2c, #ff5e6a); box-shadow: 0 4px 10px rgba(0,0,0,0.1);'; 
+                    let sponsorTitle = '🏷️ CUPOM DA LOJA';
+
+                    if (isGlobal) {
+                        sponsorTitle = `🎁 PATROCÍNIO ${c.sponsorName ? c.sponsorName.toUpperCase() : 'EXCLUSIVO'}`;
+                        if (isSicoob) {
+                            bgColor = '#00a14b';
+                            bgStyle = 'background: linear-gradient(135deg, #00a14b, #00d262); box-shadow: 0 4px 10px rgba(0, 161, 75, 0.2);'; 
+                        } else {
+                            bgColor = '#0d6efd';
+                            bgStyle = 'background: linear-gradient(135deg, #0d6efd, #3b82f6); box-shadow: 0 4px 10px rgba(13, 110, 253, 0.2);'; 
+                        }
+                    }
+
+                    let descText = '';
+                    let valSize = '2rem';
+                    
+                    if (c.type === 'percentage') {
+                        descText = `${c.value}% OFF`;
+                    } else if (c.type === 'free_shipping') {
+                        descText = `FRETE GRÁTIS`;
+                        valSize = '1.4rem'; 
+                    } else {
+                        descText = `R$ ${c.value.toFixed(2)} OFF`;
+                    }
+
+                    let minText = c.minOrder > 0 ? `Compras acima de R$ ${c.minOrder.toFixed(2)}` : 'Sem valor mínimo para uso';
+                    
+                    return `
+                    <div style="${bgStyle} display: flex; color: #fff; border-radius: 12px; position: relative; cursor: pointer; transition: 0.2s;" onclick="window.useCouponFromList('${c.code}')">
+                        <div style="flex: 1; padding: 20px; border-right: 2px dashed rgba(255, 255, 255, 0.5); display: flex; flex-direction: column; justify-content: center;">
+                            <div style="font-size: 0.75rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; margin-bottom: 6px;">${sponsorTitle}</div>
+                            <div style="font-size: ${valSize}; font-weight: 900; line-height: 1; margin-bottom: 6px;">${descText}</div>
+                            <div style="font-size: 0.85rem; font-weight: 500;">${minText}</div>
+                        </div>
+                        <div style="padding: 20px 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 100px;">
+                            <div style="background: #fff; color: ${bgColor}; font-weight: 900; font-size: 1rem; padding: 6px 12px; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px;">${c.code}</div>
+                            <div style="font-size: 0.8rem; font-weight: bold; background: rgba(0,0,0,0.2); padding: 8px 15px; border-radius: 20px;">USAR</div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<div style="font-size:0.95rem; color:#ea1d2c; text-align:center; padding: 20px;">Erro ao buscar cupons. Tente novamente.</div>';
+            }
+        };
+
+        window.useCouponFromList = (code) => {
+            document.getElementById('coupon-code').value = code;
+            window.closeCouponsModal();
+            window.applyCoupon(code);
+        };
+
+        window.closeCouponsModal = () => {
+            document.getElementById('coupons-modal').style.display = 'none';
+        };
+
+        window.applyCoupon = async (codeParam = null) => {
+            const codeInput = codeParam || document.getElementById('coupon-code').value.trim().toUpperCase();
+            const msg = document.getElementById('coupon-message');
+
+            if (!codeInput) {
+                msg.style.display = 'block'; msg.style.color = '#ea1d2c'; msg.innerText = 'Digite um código de cupom.';
+                return;
+            }
+
+            msg.style.display = 'block'; msg.style.color = '#555'; msg.innerText = 'Verificando cupom...';
+
+            try {
+                const storeId = cart[0].storeId;
+                const q = query(collection(db, "coupons"), where("code", "==", codeInput), where("active", "==", true));
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    msg.style.color = '#ea1d2c'; msg.innerText = 'Cupom inválido ou expirado.';
+                    window.removeCoupon(false);
+                    return;
+                }
+
+                let coupon = snap.docs[0].data();
+                coupon.id = snap.docs[0].id; 
+                
+                if (coupon.storeId === "GLOBAL") {
+                    if (storeDataCache && coupon.targetCity && storeDataCache.city !== coupon.targetCity) {
+                        msg.style.color = '#ea1d2c'; msg.innerText = `Este cupom é válido apenas para lojas de ${coupon.targetCity.split(' - ')[0]}.`;
+                        window.removeCoupon(false);
+                        return;
+                    }
+                    
+                    const isSicoobCoupon = (coupon.exclusiveFor === 'sicoob') || (coupon.sponsorName && coupon.sponsorName.toLowerCase().includes('sicoob'));
+
+                    if (isSicoobCoupon) {
+                        if(!userEmail) {
+                            msg.style.color = '#ea1d2c'; msg.innerText = "Faça login para usar cupons exclusivos do patrocinador.";
+                            window.removeCoupon(false);
+                            return;
+                        }
+                        const userQuery = await getDocs(query(collection(db, "customers"), where("email", "==", userEmail)));
+                        if(userQuery.empty || !userQuery.docs[0].data().isSicoob) {
+                            msg.style.color = '#ea1d2c'; msg.innerText = `Acesso Negado! Cupom exclusivo para associados ${coupon.sponsorName || 'Patrocinador'}.`;
+                            window.removeCoupon(false);
+                            return;
+                        }
+                    }
+                    coupon.isSponsored = true;
+                } 
+                else if (coupon.storeId !== storeId) {
+                    msg.style.color = '#ea1d2c'; msg.innerText = 'Este cupom não pertence a este estabelecimento.';
+                    window.removeCoupon(false);
+                    return;
+                }
+
+                if (coupon.usageLimit && (coupon.usedCount || 0) >= coupon.usageLimit) {
+                    msg.style.color = '#ea1d2c'; msg.innerText = 'Este cupom já atingiu o limite máximo de usos.';
+                    window.removeCoupon(false);
+                    return;
+                }
+
+                if (coupon.minOrder && subtotalStore < parseFloat(coupon.minOrder)) {
+                    msg.style.color = '#ea1d2c'; msg.innerText = `O pedido mínimo para este cupom é de R$ ${parseFloat(coupon.minOrder).toFixed(2)}`;
+                    window.removeCoupon(false);
+                    return;
+                }
+
+                appliedCoupon = coupon;
+                msg.style.color = '#00a14b'; 
+                msg.innerHTML = `Cupom aplicado com sucesso! <button class="btn-remove-coupon" onclick="window.removeCoupon(true)">Remover</button>`;
+                
+                document.getElementById('coupon-input-group').style.display = 'none'; 
+                document.getElementById('show-coupons-toggle').style.display = 'none'; 
+                
+                window.updateTotalsUI();
+
+            } catch (e) {
+                console.error(e);
+                msg.style.color = '#ea1d2c'; msg.innerText = 'Erro ao validar cupom. Verifique sua internet.';
+            }
+        };
+
+        window.removeCoupon = (resetUI = false) => {
+            appliedCoupon = null;
+            discountAmount = 0;
+            if (resetUI) {
+                document.getElementById('coupon-input-group').style.display = 'flex';
+                document.getElementById('show-coupons-toggle').style.display = 'flex';
+                document.getElementById('coupon-code').value = '';
+                document.getElementById('coupon-message').style.display = 'none';
+            }
+            window.updateTotalsUI();
+        };
+
+        window.updateTotalsUI = () => {
+            const feeTextElement = document.getElementById('delivery-fee-val');
+            
+            if (currentDeliveryFee > 0) {
+                feeTextElement.innerText = `R$ ${currentDeliveryFee.toFixed(2)}`;
+                feeTextElement.style.color = '#555'; feeTextElement.style.fontWeight = 'normal';
+            } else {
+                feeTextElement.innerText = 'Grátis';
+                feeTextElement.style.color = '#00a14b'; feeTextElement.style.fontWeight = 'bold';
+            }
+
+            if (appliedCoupon) {
+                if (appliedCoupon.type === 'fixed') {
+                    discountAmount = parseFloat(appliedCoupon.value);
+                    if (discountAmount > subtotalStore) discountAmount = subtotalStore;
+                } else if (appliedCoupon.type === 'percentage') {
+                    discountAmount = subtotalStore * (parseFloat(appliedCoupon.value) / 100);
+                    if (discountAmount > subtotalStore) discountAmount = subtotalStore;
+                } else if (appliedCoupon.type === 'free_shipping') {
+                    discountAmount = currentDeliveryFee; 
+                }
+
+                document.getElementById('discount-line').style.display = 'flex';
+                document.getElementById('discount-badge').innerText = appliedCoupon.code;
+                
+                if (appliedCoupon.type === 'free_shipping') {
+                    document.getElementById('discount-val').innerText = `- R$ ${discountAmount.toFixed(2)} (Frete)`;
+                } else {
+                    document.getElementById('discount-val').innerText = `- R$ ${discountAmount.toFixed(2)}`;
+                }
+            } else {
+                discountAmount = 0;
+                document.getElementById('discount-line').style.display = 'none';
+            }
+
+            finalTotal = subtotalStore + currentDeliveryFee - discountAmount;
+            if (finalTotal < 0) finalTotal = 0;
+
+            document.getElementById('total-val').innerText = `R$ ${finalTotal.toFixed(2)}`;
+            document.getElementById('btn-checkout-total').innerText = `R$ ${finalTotal.toFixed(2)}`;
+
+            // 🟢 VALIDAÇÃO DE PEDIDO MÍNIMO DA LOJA 🟢
+            const btnFinish = document.getElementById('btn-finish');
+            const minOrderAlert = document.getElementById('min-order-alert');
+            const minOrderValue = storeDataCache && storeDataCache.minOrder ? parseFloat(storeDataCache.minOrder) : 0;
+
+            if (minOrderValue > 0 && subtotalStore < minOrderValue) {
+                const diff = minOrderValue - subtotalStore;
+                minOrderAlert.style.display = 'block';
+                minOrderAlert.innerText = `O valor mínimo para pedidos nesta loja é de R$ ${minOrderValue.toFixed(2)}. Adicione mais R$ ${diff.toFixed(2)} para finalizar.`;
+                btnFinish.disabled = true;
+            } else {
+                minOrderAlert.style.display = 'none';
+                btnFinish.disabled = false;
+            }
+        };
+
+        window.renderCart = () => {
+            const container = document.getElementById('cart-items-container');
+            container.innerHTML = '';
+            subtotalStore = 0;
+            
+            if (cart.length > 0) {
+                document.getElementById('cart-store-name').innerText = cart[0].store;
+            }
+
+            cart.forEach((item, index) => {
+                subtotalStore += item.price;
+                
+                let variantHtml = item.variant ? `<div class="item-details">Opção: ${item.variant}</div>` : '';
+                let addonsHtml = item.addons && item.addons.length > 0 ? `<div class="item-details">Adicionais: ${item.addons.join(', ')}</div>` : '';
+                let obsHtml = item.observation ? `<div class="item-details" style="color:#ea1d2c; font-weight: bold;">Obs: ${item.observation}</div>` : '';
+
+                container.innerHTML += `
+                    <div class="cart-item">
+                        <div class="item-qty">${item.qty}x</div>
+                        <div class="item-info">
+                            <div class="item-name">${item.name}</div>
+                            ${variantHtml}
+                            ${addonsHtml}
+                            ${obsHtml}
+                            <button class="btn-remove" onclick="window.removeItem('${item.id}')">Remover item</button>
+                        </div>
+                        <div class="item-price">R$ ${(item.price).toFixed(2)}</div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('subtotal-val').innerText = `R$ ${subtotalStore.toFixed(2)}`;
+            
+            let fullAddress = storeDataCache?.street || 'Endereço não cadastrado pela loja';
+            if (storeDataCache?.city) fullAddress += `, ${storeDataCache.city}`;
+            if (storeDataCache?.state) fullAddress += ` - ${storeDataCache.state}`;
+            document.getElementById('store-full-address').innerText = fullAddress;
+
+            currentDeliveryFee = originalDeliveryFee = storeDataCache?.deliveryFee || 0;
+            if(document.getElementById('btn-method-retirada').classList.contains('active')){
+                currentDeliveryFee = 0;
+            }
+
+            if (appliedCoupon && subtotalStore < parseFloat(appliedCoupon.minOrder)) {
+                window.removeCoupon(true);
+            } else if (appliedCoupon) {
+                window.applyCoupon(appliedCoupon.code); 
+            } else {
+                window.updateTotalsUI();
+            }
+
+            if (isLogged) {
+                document.getElementById('checkout-form').style.display = 'block';
+                document.getElementById('bottom-bar-checkout').style.display = 'block';
+                document.getElementById('login-alert').style.display = 'none';
+            } else {
+                document.getElementById('checkout-form').style.display = 'none';
+                document.getElementById('bottom-bar-checkout').style.display = 'none';
+                document.getElementById('login-alert').style.display = 'block';
+            }
+        };
+
+        window.removeItem = (itemId) => {
+            cart = cart.filter(item => item.id !== itemId);
+            if (cart.length === 0) {
+                localStorage.removeItem('cart');
+                sessionStorage.removeItem('appliedCoupon');
+                window.location.reload();
+            } else {
+                localStorage.setItem('cart', JSON.stringify(cart));
+                window.renderCart();
+            }
+        };
+
+        window.finishOrder = async () => {
+            // Dupla verificação de segurança no momento do clique
+            const minOrderValue = storeDataCache && storeDataCache.minOrder ? parseFloat(storeDataCache.minOrder) : 0;
+            if (minOrderValue > 0 && subtotalStore < minOrderValue) {
+                alert(`O valor mínimo para pedidos nesta loja é de R$ ${minOrderValue.toFixed(2)}. Adicione mais itens na sacola.`);
+                return;
+            }
+
+            let addressString = "";
+
+            if (currentMethod === 'entrega') {
+                const rua = document.getElementById('end-rua').value.trim();
+                const num = document.getElementById('end-num').value.trim();
+                const bairro = document.getElementById('end-bairro').value.trim();
+                const cidade = document.getElementById('end-cidade').value.trim();
+                const comp = document.getElementById('end-comp').value.trim();
+
+                if(!rua || !num || !bairro || !cidade) {
+                    alert("Por favor, preencha a Rua, Número, Bairro e Cidade para entrega."); return;
+                }
+                addressString = `${rua}, ${num} - ${bairro}, ${cidade} ${comp ? '('+comp+')' : ''}`;
+            } else {
+                addressString = "🚶‍♂️ RETIRADA NO BALCÃO (Pelo Cliente)";
+            }
+
+            const payMethod = document.querySelector('input[name="pay-method"]:checked').value;
+            let paymentString = payMethod;
+            
+            if (payMethod === 'Dinheiro') {
+                const changeAmount = document.getElementById('change-amount').value.trim();
+                if (changeAmount) paymentString = `Dinheiro (Troco para R$ ${changeAmount})`;
+                else paymentString = `Dinheiro (Sem troco / Valor exato)`;
+            }
+
+            const btn = document.getElementById('btn-finish');
+            btn.innerHTML = "Enviando Pedido...";
+            btn.disabled = true;
+
+            const newOrder = {
+                date: new Date().toLocaleString('pt-BR'),
+                timestamp: Date.now(), 
+                storeId: cart[0].storeId,
+                storeName: cart[0].store,
+                customerName: userName,
+                customer: {
+                    name: userName,
+                    email: userEmail,
+                    address: addressString
+                },
+                items: cart,
+                deliveryFee: currentDeliveryFee, 
+                orderType: currentMethod, 
+                
+                discount: discountAmount,
+                couponCode: appliedCoupon ? appliedCoupon.code : null,
+                isSponsored: appliedCoupon && appliedCoupon.isSponsored ? true : false,
+                sponsorName: appliedCoupon && appliedCoupon.isSponsored ? appliedCoupon.sponsorName : null,
+                
+                total: finalTotal,
+                paymentMethod: paymentString,
+                status: 'Pendente' 
+            };
+
+            try {
+                await addDoc(collection(db, "orders"), newOrder);
+                
+                if (appliedCoupon && appliedCoupon.id) {
+                    const couponRef = doc(db, "coupons", appliedCoupon.id);
+                    await updateDoc(couponRef, {
+                        usedCount: increment(1) 
+                    });
+                }
+
+                localStorage.removeItem('cart');
+                sessionStorage.removeItem('appliedCoupon');
+                
+                alert("Pedido realizado com sucesso! A loja já foi notificada.");
+                window.location.href = "pedidos.html";
+
+            } catch (error) {
+                console.error("Erro ao finalizar pedido:", error);
+                alert("Ocorreu um erro de conexão. Tente novamente.");
+                btn.innerHTML = `<span>Confirmar Pedido</span><span id="btn-checkout-total">R$ ${finalTotal.toFixed(2)}</span>`;
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

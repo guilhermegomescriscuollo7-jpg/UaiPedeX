@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacidade e Proteção de Dados - UaiPede</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #ea1d2c;
+            --primary-hover: #c51825;
+            --slate-900: #0f172a;
+            --slate-600: #475569;
+            --slate-100: #f1f5f9;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        
+        body { background-color: #ffffff; color: var(--slate-900); line-height: 1.7; }
+
+        /* Navigation Bar */
+        nav {
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 5%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+        }
+
+        .back-link {
+            color: var(--slate-600);
+            text-decoration: none;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: 0.2s;
+        }
+
+        .back-link:hover { color: var(--primary); }
+
+        /* Hero Section */
+        .hero {
+            padding: 80px 20px;
+            text-align: center;
+            background: var(--slate-100);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 { font-size: 2.5rem; font-weight: 800; color: var(--slate-900); margin-bottom: 1rem; }
+        .badge {
+            background: #fff;
+            border: 1px solid var(--border);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--slate-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Content Layout */
+        .main-content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .section-block { margin-bottom: 48px; }
+        .section-block h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            color: var(--slate-900);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-block h2::before {
+            content: "";
+            width: 4px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        p { margin-bottom: 1rem; color: var(--slate-600); }
+
+        .data-list {
+            background: var(--slate-100);
+            padding: 24px;
+            border-radius: 12px;
+            list-style: none;
+        }
+
+        .data-list li {
+            margin-bottom: 12px;
+            padding-left: 24px;
+            position: relative;
+            font-size: 0.95rem;
+            color: var(--slate-600);
+        }
+
+        .data-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        /* Footer Branding */
+        .footer-info {
+            margin-top: 80px;
+            padding-top: 40px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .support-card {
+            background: var(--slate-900);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-contact {
+            background: var(--primary);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+
+        .btn-contact:hover { background: var(--primary-hover); }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.75rem; }
+            .support-card { flex-direction: column; gap: 24px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="javascript:history.back()" class="back-link">← Voltar para a plataforma</a>
+        <strong style="color: var(--primary)">UaiPede</strong>
+    </nav>
+
+    <header class="hero">
+        <span class="badge">Transparência e Segurança</span>
+        <h1>Política de Privacidade</h1>
+        <p>Última atualização: 28 de Fevereiro de 2026</p>
+    </header>
+
+    <main class="main-content">
+        
+        <section class="section-block">
+            <h2>1. Compromisso com a Privacidade</h2>
+            <p>O <strong>UaiPede</strong>, operado pela Gh Space Tech, valoriza a confiança depositada em nossos serviços. Esta política estabelece de forma clara como tratamos seus dados pessoais em conformidade com as legislações de proteção de dados vigentes.</p>
+        </section>
+
+        <section class="section-block">
+            <h2>2. Coleta de Dados Minimamente Necessária</h2>
+            <p>Para prover nossos serviços de intermediação logística e entregas, coletamos estritamente o necessário:</p>
+            <ul class="data-list">
+                <li><strong>Identificação:</strong> Nome completo e endereço de correio eletrônico.</li>
+                <li><strong>Logística:</strong> Endereço exato de entrega e geolocalização em tempo real.</li>
+                <li><strong>Transacional:</strong> Histórico de interações na plataforma e métodos de pagamento preferenciais.</li>
+            </ul>
+        </section>
+
+        <section class="section-block">
+            <h2>3. Finalidade do Tratamento</h2>
+            <p>Os dados coletados possuem finalidades específicas voltadas à execução do serviço contratado:</p>
+            <p>• Viabilização técnica de pedidos junto a estabelecimentos parceiros.<br>
+               • Compartilhamento de rota com entregadores autônomos para fins de entrega.<br>
+               • Suporte ao cliente e comunicações transacionais críticas.</p>
+        </section>
+
+        <section class="section-block">
+            <h2>4. Segurança da Informação</h2>
+            <p>Utilizamos a infraestrutura <strong>Google Cloud (Firebase)</strong>, garantindo camadas de encriptação em repouso e em trânsito, seguindo os mais rigorosos padrões internacionais de segurança cibernética.</p>
+        </section>
+
+        <section class="section-block">
+            <h2>5. Direitos do Titular</h2>
+            <p>Em conformidade com a LGPD, garantimos ao usuário o direito de:</p>
+            <p>• Acessar e retificar seus dados através das configurações de perfil.<br>
+               • Revogar o consentimento e solicitar a <strong>exclusão definitiva</strong> de sua conta e dados associados.</p>
+        </section>
+
+        <div class="support-card">
+            <div>
+                <h3 style="margin-bottom: 8px;">Dúvidas?</h3>
+                <p style="color: #cbd5e1; margin: 0;">Nossa equipe de suporte está pronta para esclarecer questões sobre seus dados.</p>
+            </div>
+            <a href="mailto:suporte@uaipede.com.br" class="btn-contact">Contatar Suporte</a>
+        </div>
+
+        <footer class="footer-info">
+            <p style="font-size: 0.8rem;">© 2026 UaiPede Delivery. Todos os direitos reservados.<br>
+            Gh Space Tech • CNPJ: 59.742.566/0001-31</p>
+        </footer>
+
+    </main>
+
+</body>
+</html>
