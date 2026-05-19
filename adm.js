@@ -1,9 +1,15 @@
-// Configuração do Supabase (Substitua pelas suas credenciais caso necessário)
-const SUPABASE_URL = "https://sua-url-do-supabase.supabase.co";
-const SUPABASE_KEY = "sua-chave-anon-do-supabase";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ==========================================
+// CONFIGURAÇÃO DO SUPABASE
+// ==========================================
+const SUPABASE_URL = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G';
 
-// Verificar autenticação ao carregar a página
+// Usamos supabaseClient para não conflitar com a variável global 'supabase'
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ==========================================
+// INICIALIZAÇÃO E AUTENTICAÇÃO
+// ==========================================
 document.addEventListener("DOMContentLoaded", () => {
     const isAdmin = sessionStorage.getItem('adminAuth');
     if (!isAdmin) {
@@ -29,7 +35,7 @@ let storeImgBase64 = "";
 // GERENCIAMENTO DE LOJAS (STORES)
 // ==========================================
 async function loadStores() {
-    const { data, error } = await supabase.from('stores').select('*').order('name', { ascending: true });
+    const { data, error } = await supabaseClient.from('stores').select('*').order('name', { ascending: true });
     if (error) {
         console.error("Erro ao carregar lojas:", error);
         return;
@@ -76,14 +82,14 @@ async function saveStore(event) {
             storeData.logo = storeImgBase64;
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('stores')
             .update(storeData)
             .eq('id', editingStoreId)
             .select();
 
         if (error) {
-            alert(`Erro do Supabase ao atualizar: ${error.message}\nVerifique as políticas RLS da tabela.`);
+            alert(`Erro do Supabase ao atualizar: ${error.message}`);
             console.error(error);
         } else {
             alert("Loja atualizada com sucesso!");
@@ -94,7 +100,7 @@ async function saveStore(event) {
         // Modo Inserção
         storeData.logo = storeImgBase64 || "placeholder.png";
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('stores')
             .insert([storeData]);
 
@@ -110,7 +116,7 @@ async function saveStore(event) {
 }
 
 async function editStore(id) {
-    const { data, error } = await supabase.from('stores').select('*').eq('id', id).single();
+    const { data, error } = await supabaseClient.from('stores').select('*').eq('id', id).single();
     if (error || !data) {
         alert("Não foi possível buscar os dados da loja.");
         return;
@@ -127,13 +133,13 @@ async function editStore(id) {
 async function deleteStore(id) {
     if (!confirm("Tem certeza que deseja excluir esta loja?")) return;
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('stores')
         .delete()
         .eq('id', id);
 
     if (error) {
-        alert(`Erro do Supabase ao excluir: ${error.message}\nVerifique as políticas RLS da tabela.`);
+        alert(`Erro do Supabase ao excluir: ${error.message}`);
         console.error(error);
     } else {
         alert("Loja excluída com sucesso!");
@@ -167,7 +173,7 @@ if (storeImgInput) {
 // GERENCIAMENTO DE CIDADES (CITIES)
 // ==========================================
 async function loadCities() {
-    const { data, error } = await supabase.from('cities').select('*').order('name', { ascending: true });
+    const { data, error } = await supabaseClient.from('cities').select('*').order('name', { ascending: true });
     if (error) return console.error(error);
 
     const tableBody = document.getElementById("citiesTableBody");
@@ -198,7 +204,7 @@ async function saveCity(event) {
     const cityData = { name: name, state: state, delivery_fee: fee };
 
     if (editingCityId) {
-        const { error } = await supabase.from('cities').update(cityData).eq('id', editing_city_id).select();
+        const { error } = await supabaseClient.from('cities').update(cityData).eq('id', editingCityId).select();
         if (error) {
             alert(`Erro ao atualizar cidade: ${error.message}`);
         } else {
@@ -207,7 +213,7 @@ async function saveCity(event) {
             loadCities();
         }
     } else {
-        const { error } = await supabase.from('cities').insert([cityData]);
+        const { error } = await supabaseClient.from('cities').insert([cityData]);
         if (error) {
             alert(`Erro ao cadastrar cidade: ${error.message}`);
         } else {
@@ -219,7 +225,7 @@ async function saveCity(event) {
 }
 
 async function editCity(id) {
-    const { data, error } = await supabase.from('cities').select('*').eq('id', id).single();
+    const { data, error } = await supabaseClient.from('cities').select('*').eq('id', id).single();
     if (error || !data) return;
 
     editingCityId = id;
@@ -231,7 +237,7 @@ async function editCity(id) {
 
 async function deleteCity(id) {
     if (!confirm("Excluir esta cidade?")) return;
-    const { error } = await supabase.from('cities').delete().eq('id', id);
+    const { error } = await supabaseClient.from('cities').delete().eq('id', id);
     if (error) {
         alert(`Erro ao excluir cidade: ${error.message}`);
     } else {
@@ -250,7 +256,7 @@ function resetCityForm() {
 // GERENCIAMENTO DE ENTREGADORES (DRIVERS)
 // ==========================================
 async function loadDrivers() {
-    const { data, error } = await supabase.from('drivers').select('*').order('name', { ascending: true });
+    const { data, error } = await supabaseClient.from('drivers').select('*').order('name', { ascending: true });
     if (error) return console.error(error);
 
     const tableBody = document.getElementById("driversTableBody");
@@ -283,7 +289,7 @@ async function saveDriver(event) {
     const driverData = { name: name, phone: phone, vehicle: vehicle, status: status };
 
     if (editingDriverId) {
-        const { error } = await supabase.from('drivers').update(driverData).eq('id', editingDriverId).select();
+        const { error } = await supabaseClient.from('drivers').update(driverData).eq('id', editingDriverId).select();
         if (error) {
             alert(`Erro ao atualizar entregador: ${error.message}`);
         } else {
@@ -292,7 +298,7 @@ async function saveDriver(event) {
             loadDrivers();
         }
     } else {
-        const { error } = await supabase.from('drivers').insert([driverData]);
+        const { error } = await supabaseClient.from('drivers').insert([driverData]);
         if (error) {
             alert(`Erro ao cadastrar entregador: ${error.message}`);
         } else {
@@ -304,7 +310,7 @@ async function saveDriver(event) {
 }
 
 async function editDriver(id) {
-    const { data, error } = await supabase.from('drivers').select('*').eq('id', id).single();
+    const { data, error } = await supabaseClient.from('drivers').select('*').eq('id', id).single();
     if (error || !data) return;
 
     editingDriverId = id;
@@ -317,7 +323,7 @@ async function editDriver(id) {
 
 async function deleteDriver(id) {
     if (!confirm("Excluir este entregador?")) return;
-    const { error } = await supabase.from('drivers').delete().eq('id', id);
+    const { error } = await supabaseClient.from('drivers').delete().eq('id', id);
     if (error) {
         alert(`Erro ao excluir entregador: ${error.message}`);
     } else {
@@ -332,7 +338,9 @@ function resetDriverForm() {
     document.getElementById("btnSaveDriver").innerText = "Salvar Entregador";
 }
 
-// Função de Logout do Painel
+// ==========================================
+// FUNÇÃO DE LOGOUT
+// ==========================================
 function logoutAdmin() {
     sessionStorage.removeItem('adminAuth');
     window.location.href = "loginadm.html";
