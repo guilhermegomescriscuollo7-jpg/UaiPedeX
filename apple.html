@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Como instalar o UaiPede no iPhone</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ea1d2c;
+            --primary-light: #fff5f5;
+            --dark: #111111;
+            --gray-text: #717171;
+            --bg-light: #f8f8f8;
+            --white: #ffffff;
+            --ios-blue: #007AFF;
+            --ios-bg: #F2F2F7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body { background-color: var(--white); color: var(--dark); overflow-x: hidden; }
+
+        /* HEADER (Herdado) */
+        header {
+            position: fixed; top: 0; left: 0; width: 100%; padding: 15px 8%;
+            background: rgba(255, 255, 255, 0.98); display: flex; 
+            justify-content: space-between; align-items: center;
+            z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+        .logo svg { width: 35px; height: auto; transform: rotate(-10deg); }
+        .logo span { font-size: 1.8rem; font-weight: 900; color: var(--primary); font-style: italic; letter-spacing: -1px; }
+
+        .btn-voltar {
+            background: var(--bg-light); color: var(--dark); padding: 8px 16px; 
+            border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem;
+            transition: 0.2s; border: 1px solid #ddd;
+        }
+        .btn-voltar:hover { background: #eee; }
+
+        /* HERO & TUTORIAL SECTION */
+        .tutorial-container {
+            padding: 120px 8% 80px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            gap: 50px;
+            background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+        }
+
+        .tutorial-text { flex: 1; max-width: 500px; }
+        .badge-mineiro {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--primary-light); color: var(--primary);
+            padding: 8px 16px; border-radius: 50px; font-weight: 800;
+            font-size: 0.8rem; text-transform: uppercase; margin-bottom: 25px;
+            border: 1px solid #fbd5d5;
+        }
+        
+        .tutorial-text h1 { font-size: 3rem; font-weight: 900; line-height: 1.1; margin-bottom: 15px; letter-spacing: -1px; }
+        .tutorial-text p { font-size: 1.1rem; color: var(--gray-text); margin-bottom: 40px; line-height: 1.5; }
+
+        /* STEPS CONTROLLER */
+        .step-indicators { display: flex; gap: 10px; margin-bottom: 20px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; transition: 0.3s; }
+        .dot.active { background: var(--primary); width: 30px; border-radius: 10px; }
+
+        .step-content {
+            background: var(--white); padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #eee;
+            min-height: 200px; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .step-content h3 { font-size: 1.3rem; font-weight: 800; margin-bottom: 10px; color: var(--dark); }
+        .step-content p { font-size: 1rem; color: var(--gray-text); margin-bottom: 20px; }
+
+        .btn-action {
+            background: var(--primary); color: #fff; border: none; padding: 12px 24px;
+            border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer;
+            transition: 0.3s; display: inline-flex; align-items: center; gap: 10px; width: fit-content;
+        }
+        .btn-action:hover { background: #c91623; transform: translateY(-2px); }
+
+        /* PHONE MOCKUP (Dynamic) */
+        .tutorial-visual { flex: 1; display: flex; justify-content: center; }
+        .phone-mockup {
+            width: 320px; height: 650px; background: #fff; border: 12px solid #111;
+            border-radius: 45px; box-shadow: 0 30px 60px rgba(0,0,0,0.15);
+            position: relative; overflow: hidden; display: flex; flex-direction: column;
+        }
+        .phone-mockup::after {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 25px; background: #111; border-radius: 0 0 20px 20px; z-index: 10;
+        }
+
+        /* Safari UI Mockup */
+        .safari-header { background: #f8f8f8; padding: 40px 15px 10px; border-bottom: 1px solid #ddd; text-align: center; }
+        .safari-url { background: #e3e3e8; border-radius: 10px; padding: 8px; font-size: 0.85rem; color: #000; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        
+        .safari-body { flex: 1; background: var(--bg-light); position: relative; overflow: hidden; }
+        .fake-app-content { padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.5; }
+        .fake-app-content svg { width: 50px; opacity: 0.5; }
+
+        .safari-footer { background: #f8f8f8; padding: 15px 25px 25px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; color: var(--ios-blue); font-size: 1.2rem; }
+        
+        /* Highlight Animations */
+        .highlight-pulse { position: absolute; border-radius: 50%; border: 3px solid var(--primary); animation: pulse 1.5s infinite; opacity: 0; pointer-events: none; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+
+        /* Share Sheet (iOS Modal) */
+        .ios-share-sheet {
+            position: absolute; bottom: -100%; left: 0; width: 100%; background: #f2f2f7;
+            border-radius: 20px 20px 0 0; padding: 15px; transition: 0.4s ease-in-out;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 5;
+        }
+        .ios-share-sheet.active { bottom: 0; }
+        .ios-share-sheet .grip { width: 40px; height: 5px; background: #ccc; border-radius: 5px; margin: 0 auto 15px; }
+        .share-row { background: #fff; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+        .share-btn { padding: 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+        .share-btn:last-child { border-bottom: none; }
+        .share-btn i { font-size: 1.2rem; }
+
+        /* Add to Home Modal */
+        .ios-add-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f2f2f7; z-index: 20; transform: translateX(100%); transition: 0.3s;
+            display: flex; flex-direction: column;
+        }
+        .ios-add-modal.active { transform: translateX(0); }
+        .add-modal-header { display: flex; justify-content: space-between; padding: 40px 15px 15px; border-bottom: 1px solid #ccc; font-weight: 600; }
+        .add-modal-body { padding: 20px; display: flex; gap: 15px; align-items: center; background: #fff; margin-top: 20px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc;}
+        .add-modal-icon { width: 50px; height: 50px; background: #fff; border-radius: 12px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; }
+
+        /* Home Screen (Final Step) */
+        .ios-home-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=300&auto=format&fit=crop') center/cover;
+            z-index: 30; opacity: 0; transition: 0.5s; pointer-events: none;
+            padding: 60px 20px;
+        }
+        .ios-home-screen.active { opacity: 1; pointer-events: all; }
+        .app-icon-wrapper { text-align: center; width: 60px; margin-top: 20px; }
+        .app-icon { width: 60px; height: 60px; background: #fff; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .app-name { color: #fff; font-size: 0.7rem; font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+        @media (max-width: 900px) {
+            .tutorial-container { flex-direction: column; text-align: center; padding-top: 100px; }
+            .tutorial-text { max-width: 100%; }
+            .step-indicators { justify-content: center; }
+            .btn-action { margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="inicio.html" class="logo">
+            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="10" stroke-linecap="round"/>
+            </svg>
+            <span>UaiPede</span>
+        </a>
+        <a href="inicio.html" class="btn-voltar"><i class="fas fa-arrow-left"></i> Voltar</a>
+    </header>
+
+    <section class="tutorial-container">
+        
+        <div class="tutorial-text">
+            <div class="badge-mineiro">📱 Dica de Ouro</div>
+            <h1>Instale no seu iPhone</h1>
+            <p>Fácil demais da conta! Sem precisar ir na App Store, você pode colocar o UaiPede direto na tela inicial do seu celular. Siga os passos abaixo.</p>
+
+            <div class="step-indicators" id="dots-container">
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+
+            <div class="step-content">
+                <div>
+                    <h3 id="step-title">1. Abra o site no Safari</h3>
+                    <p id="step-desc">Acesse <strong>uaipede.vercel.app</strong> usando o navegador Safari (o navegador padrão do iPhone).</p>
+                </div>
+                <button class="btn-action" id="btn-next" onclick="nextStep()">Próximo Passo <i class="fas fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <div class="tutorial-visual">
+            <div class="phone-mockup">
+                
+                <div class="safari-header">
+                    <div class="safari-url"><i class="fas fa-lock" style="font-size:0.7rem;"></i> uaipede.vercel.app</div>
+                </div>
+
+                <div class="safari-body">
+                    <div class="fake-app-content">
+                        <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="10" stroke-linecap="round"/>
+                        </svg>
+                        <h2 style="color: var(--primary); font-style: italic; margin-top: 10px;">UaiPede</h2>
+                    </div>
+
+                    <div class="ios-share-sheet" id="share-sheet">
+                        <div class="grip"></div>
+                        <div class="share-row">
+                            <div class="share-btn">Copiar Link <i class="far fa-copy"></i></div>
+                            <div class="share-btn" id="btn-mock-add">Adicionar à Tela de Início <i class="far fa-plus-square"></i></div>
+                            <div class="share-btn">Favoritos <i class="far fa-star"></i></div>
+                        </div>
+                        <div class="highlight-pulse" id="pulse-add" style="top: 75px; left: 50%; transform: translateX(-50%); width: 280px; height: 40px; border-radius: 8px;"></div>
+                    </div>
+                </div>
+
+                <div class="safari-footer">
+                    <i class="fas fa-chevron-left"></i>
+                    <i class="fas fa-chevron-right" style="opacity: 0.3;"></i>
+                    <div style="position: relative;">
+                        <i class="fas fa-external-link-square-alt" style="transform: rotate(-90deg);"></i>
+                        <div class="highlight-pulse" id="pulse-share" style="top: -15px; left: -15px; width: 50px; height: 50px;"></div>
+                    </div>
+                    <i class="far fa-bookmark"></i>
+                    <i class="far fa-clone"></i>
+                </div>
+
+                <div class="ios-add-modal" id="add-modal">
+                    <div class="add-modal-header">
+                        <span style="color: var(--ios-blue);">Cancelar</span>
+                        <span>Adicionar à Tela...</span>
+                        <span style="color: var(--ios-blue); font-weight: 700; position:relative;">
+                            Adicionar
+                            <div class="highlight-pulse" id="pulse-final" style="top: -10px; left: -15px; width: 100px; height: 40px; border-radius: 10px;"></div>
+                        </span>
+                    </div>
+                    <div class="add-modal-body">
+                        <div class="add-modal-icon">
+                            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 30px;">
+                                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="12" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600;">UaiPede</div>
+                            <div style="font-size: 0.8rem; color: #888;">https://uaipede.vercel.app</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ios-home-screen" id="home-screen">
+                    <div class="app-icon-wrapper">
+                        <div class="app-icon">
+                            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 35px; transform: rotate(-5deg);">
+                                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="12" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div class="app-name">UaiPede</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        const stepsData = [
+            {
+                title: "1. Abra o site no Safari",
+                desc: "Acesse <strong>uaipede.vercel.app</strong> usando o navegador Safari (o navegador com ícone de bússola do iPhone).",
+                action: () => {
+                    document.getElementById('pulse-share').style.opacity = '0';
+                    document.getElementById('share-sheet').classList.remove('active');
+                }
+            },
+            {
+                title: "2. Toque em Compartilhar",
+                desc: "Na barra inferior do Safari, clique no ícone de compartilhamento (um quadrado com uma setinha para cima).",
+                action: () => {
+                    document.getElementById('pulse-share').style.opacity = '1';
+                    document.getElementById('share-sheet').classList.remove('active');
+                    document.getElementById('add-modal').classList.remove('active');
+                }
+            },
+            {
+                title: "3. Adicionar à Tela de Início",
+                desc: "Arraste o menu para baixo até encontrar a opção <strong>Adicionar à Tela de Início</strong> (ícone de um quadrado com um +).",
+                action: () => {
+                    document.getElementById('pulse-share').style.opacity = '0';
+                    document.getElementById('share-sheet').classList.add('active');
+                    document.getElementById('pulse-add').style.opacity = '1';
+                    document.getElementById('add-modal').classList.remove('active');
+                }
+            },
+            {
+                title: "4. Confirme no topo",
+                desc: "Vai abrir uma telinha nova. É só clicar em <strong>Adicionar</strong> lá no canto superior direito.",
+                action: () => {
+                    document.getElementById('share-sheet').classList.remove('active');
+                    document.getElementById('pulse-add').style.opacity = '0';
+                    document.getElementById('add-modal').classList.add('active');
+                    document.getElementById('pulse-final').style.opacity = '1';
+                    document.getElementById('home-screen').classList.remove('active');
+                }
+            },
+            {
+                title: "🎉 Pronto! Tudo certo.",
+                desc: "O UaiPede agora está na tela inicial do seu iPhone, igual a um aplicativo normal. É só abrir e pedir!",
+                action: () => {
+                    document.getElementById('pulse-final').style.opacity = '0';
+                    document.getElementById('home-screen').classList.add('active');
+                    document.getElementById('btn-next').innerHTML = '<i class="fas fa-redo"></i> Ver novamente';
+                }
+            }
+        ];
+
+        let currentStep = 0;
+
+        function nextStep() {
+            currentStep++;
+            
+            if (currentStep >= stepsData.length) {
+                currentStep = 0; // Reseta o tutorial
+                document.getElementById('btn-next').innerHTML = 'Próximo Passo <i class="fas fa-arrow-right"></i>';
+            }
+
+            // Atualiza Textos
+            document.getElementById('step-title').innerHTML = stepsData[currentStep].title;
+            document.getElementById('step-desc').innerHTML = stepsData[currentStep].desc;
+
+            // Atualiza Dots
+            const dots = document.querySelectorAll('.dot');
+            dots.forEach((dot, index) => {
+                // Acomoda o fato de termos 5 passos lógicos, mas 4 pontinhos (o último é o sucesso)
+                if(index === currentStep || (currentStep === 4 && index === 3)) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+
+            // Dispara a animação/estado correspondente no mockup
+            stepsData[currentStep].action();
+        }
+
+        // Estado inicial
+        stepsData[0].action();
+    </script>
+</body>
+</html>
