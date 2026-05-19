@@ -110,7 +110,7 @@
     </div>
 
     <script type="module">
-        // Importação do Supabase em vez do Firebase
+        // Importação do Supabase
         import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
         // Chaves do seu projeto UaiPede no Supabase
@@ -120,7 +120,7 @@
 
         const errorMsg = document.getElementById('error-message');
 
-        // Verifica se o utilizador já está logado ao carregar a página
+        // Verifica se o administrador já está logado ao carregar a página
         window.onload = () => {
             if(sessionStorage.getItem('adminAuth') === 'true') {
                 window.location.href = 'adm.html';
@@ -144,7 +144,7 @@
             errorMsg.style.display = 'none';
 
             try {
-                // Consulta a tabela 'admins' no Supabase
+                // Consulta a tabela 'admins' no Supabase usando as colunas que criou
                 const { data, error } = await supabase
                     .from('admins')
                     .select('*')
@@ -158,12 +158,12 @@
                     sessionStorage.setItem('adminAuth', 'true');
                     window.location.href = 'adm.html';
                 } else {
-                    // Credenciais não encontradas no banco de dados
+                    // Credenciais não encontradas na tabela admins
                     showError("Erro: E-mail ou palavra-passe incorretos.");
                 }
             } catch (error) {
                 console.error("Erro na autenticação:", error);
-                showError("Erro técnico ao conectar com o banco de dados.");
+                showError("Erro técnico ao ligar à base de dados.");
             }
         });
     </script>
