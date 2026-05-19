@@ -1,166 +1,201 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#111111">
-    <title>Login Admin - UaiPede</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Administrativo - UaiPede</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
-        body { background-color: #111; color: #333; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        
-        .login-box { 
-            background: #fff; 
-            width: 90%; 
-            max-width: 400px; 
-            padding: 45px 35px; 
-            border-radius: 24px; 
-            text-align: center; 
-            box-shadow: 0 15px 50px rgba(0,0,0,0.3); 
+        :root {
+            --primary-color: #ff4757; /* Cor principal do UaiPede (ajuste se necessário) */
+            --bg-color: #f1f2f6;
         }
-        
-        .login-box h2 { 
-            border-bottom: none; 
-            margin-bottom: 25px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            gap: 5px; 
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
-        .form-group { margin-bottom: 18px; text-align: left; }
-        label { 
-            display: block; 
-            font-size: 0.8rem; 
-            margin-bottom: 6px; 
-            color: #777; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px;
+
+        body {
+            background: linear-gradient(135deg, #ff6b81, #ff4757);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
         }
-        
-        input { 
-            width: 100%; 
-            padding: 14px 16px; 
-            border: 1px solid #e5e5e5; 
-            border-radius: 10px; 
-            outline: none; 
-            font-size: 0.95rem; 
-            background: #fdfdfd; 
+
+        /* Efeito Glassmorphism */
+        .login-container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            text-align: center;
+            color: #fff;
+        }
+
+        .login-container h2 {
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            color: #333;
+            outline: none;
             transition: all 0.3s ease;
         }
-        
-        input:focus { 
-            border-color: #ea1d2c; 
-            background: #fff; 
-            box-shadow: 0 0 0 4px rgba(234, 29, 44, 0.1);
+
+        .input-group input:focus {
+            background: #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
-        
-        .btn { 
-            background: linear-gradient(135deg, #ea1d2c, #ff4b58); 
-            color: #fff; 
-            border: none; 
-            padding: 16px; 
-            border-radius: 10px; 
-            font-weight: 800; 
-            cursor: pointer; 
-            transition: all 0.3s ease; 
-            width: 100%; 
-            font-size: 1.1rem; 
+
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #fff;
+            color: var(--primary-color);
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
             margin-top: 10px;
         }
-        
-        .btn:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 6px 18px rgba(234, 29, 44, 0.35);
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
-        
-        .error-msg { 
-            color: #ea1d2c; 
-            font-size: 0.85rem; 
-            margin-top: 15px; 
-            font-weight: bold; 
-            display: none; 
+
+        .error-message {
+            color: #ffeaa7;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
         }
     </style>
 </head>
 <body>
 
-    <div class="login-box">
-        <h2>
-            <div style="font-size: 2.8rem; font-weight: 900; font-style: italic; letter-spacing: -1px;">
-                <span style="color: #ea1d2c;">Uai</span><span style="color: #111;">Pede</span>
+    <div class="login-container">
+        <h2>UaiPede Admin</h2>
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">Usuário</label>
+                <input type="text" id="username" placeholder="Digite seu usuário" required>
             </div>
-            <span style="font-size: 1.1rem; color: #777; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">Acesso Restrito</span>
-        </h2>
-        
-        <div class="form-group">
-            <label>E-mail do Administrador</label>
-            <input type="email" id="adm-email" placeholder="Digite o seu e-mail">
-        </div>
-        <div class="form-group">
-            <label>Palavra-passe</label>
-            <input type="password" id="adm-pass" placeholder="Digite a sua palavra-passe">
-        </div>
-        
-        <div id="error-message" class="error-msg"></div>
-
-        <button class="btn" id="btn-login">Entrar no Painel</button>
+            <div class="input-group">
+                <label for="password">Senha</label>
+                <input type="password" id="password" placeholder="Digite sua senha" required>
+            </div>
+            <button type="submit" class="btn-login" id="btnSubmit">Entrar</button>
+            <div id="errorMsg" class="error-message">Usuário ou senha incorretos!</div>
+        </form>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    <script>
+        // ==========================================
+        // CONFIGURAÇÃO DO SUPABASE
+        // ==========================================
+        // IMPORTANTE: Cole aqui suas chaves reais do projeto UaiPedeX
+        const SUPABASE_URL = "https://sua-url-do-supabase.supabase.co";
+        const SUPABASE_KEY = "sua-chave-anon-do-supabase";
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+        // ==========================================
+        // LÓGICA DE LOGIN
+        // ==========================================
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Evita que a página recarregue
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const errorMsg = document.getElementById('error-message');
+            const userVal = document.getElementById('username').value;
+            const passVal = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            const btnSubmit = document.getElementById('btnSubmit');
 
-        // Verifica se o utilizador já está logado ao carregar a página
-        window.onload = () => {
-            if(sessionStorage.getItem('adminAuth') === 'true') {
-                window.location.href = 'adm.html';
-            }
-        };
-
-        const showError = (msg) => { 
-            errorMsg.innerText = msg; 
-            errorMsg.style.display = 'block'; 
-        };
-
-        document.getElementById('btn-login').addEventListener('click', async () => {
-            const email = document.getElementById('adm-email').value.trim();
-            const pass = document.getElementById('adm-pass').value.trim();
-            
-            if(!email || !pass) return showError("Por favor, preencha todos os campos.");
+            // Feedback visual de carregamento
+            btnSubmit.innerText = "Verificando...";
+            btnSubmit.disabled = true;
+            errorMsg.style.display = 'none';
 
             try {
-                // Consulta a coleção 'admins' no Firestore para validar as credenciais
-                const adminsRef = collection(db, "admins");
-                const q = query(adminsRef, where("email", "==", email), where("password", "==", pass));
-                const querySnapshot = await getDocs(q);
+                /* ATENÇÃO: Este código assume que você criou uma tabela chamada "admins"
+                   no Supabase, com as colunas "usuario" e "senha".
+                   Se os nomes forem diferentes, altere no código abaixo.
+                */
+                const { data, error } = await supabase
+                    .from('admins')
+                    .select('*')
+                    .eq('usuario', userVal)
+                    .eq('senha', passVal)
+                    .single(); // Retorna apenas 1 resultado (ou erro se não achar)
 
-                if (!querySnapshot.empty) {
-                    // Credenciais corretas: define a chave de sessão e redireciona
-                    sessionStorage.setItem('adminAuth', 'true');
-                    window.location.href = 'adm.html';
-                } else {
-                    // Credenciais não encontradas no banco de dados
-                    showError("Erro: E-mail ou palavra-passe incorretos.");
+                if (error || !data) {
+                    // Login falhou (não encontrou no banco)
+                    throw new Error("Credenciais inválidas");
                 }
-            } catch (error) {
-                console.error("Erro na autenticação:", error);
-                showError("Erro técnico ao conectar com o banco de dados.");
+
+                // Login com sucesso!
+                // Salva a sessão no navegador para o adm.js reconhecer
+                sessionStorage.setItem('adminAuth', 'true');
+                
+                // Redireciona para o painel principal
+                window.location.href = 'adm.html';
+
+            } catch (err) {
+                // Mostra mensagem de erro
+                errorMsg.innerText = "Usuário ou senha incorretos!";
+                errorMsg.style.display = 'block';
+                console.error("Erro no login:", err);
+            } finally {
+                // Restaura o botão
+                btnSubmit.innerText = "Entrar";
+                btnSubmit.disabled = false;
+            }
+        });
+
+        // ==========================================
+        // VERIFICAÇÃO DE SESSÃO ATIVA
+        // ==========================================
+        // Se o admin já estiver logado e tentar abrir a página de login,
+        // ele é redirecionado direto para o painel.
+        document.addEventListener("DOMContentLoaded", () => {
+            if (sessionStorage.getItem('adminAuth') === 'true') {
+                window.location.href = "adm.html";
             }
         });
     </script>
