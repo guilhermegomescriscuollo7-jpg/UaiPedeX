@@ -19,6 +19,7 @@ if (!loggedStore) {
 let globalOrders = [];
 let globalProducts = [];
 let currentChatOrderId = null;
+let customAlertSound = null;
 let realtimeOrdersChannel = null;
 let realtimeChatChannel = null;
 
@@ -31,60 +32,71 @@ window.onload = async () => {
     document.getElementById('ui-store-name').innerText = loggedStore.name;
     document.getElementById('ui-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
 
-    // Sincroniza o toggle com o status atual do BD
-    const { data: storeData } = await supabase.from('stores').select('status').eq('id', loggedStore.id).single();
-    if(storeData) {
-        const isOpen = storeData.status === 'Aberto';
-        document.getElementById('btn-toggle-status').checked = isOpen;
-        document.getElementById('btn-toggle-status').className = isOpen ? 'store-status-toggle status-open' : 'store-status-toggle status-closed';
-    }
+    // Carrega configurações de áudio
+    await loadCustomAudio();
 
+    // Sincroniza o status da loja
+    document.getElementById('btn-toggle-status').checked = loggedStore.status === 'Aberto';
+    
     initRealtimeOrders();
     loadProducts();
 };
 
+async function loadCustomAudio() {
+    const { data } = await supabase.from('global_settings').select('audioData').eq('id', 'notification_audio').single();
+    customAlertSound = new Audio(data?.audioData || 'https://www.myinstants.com/media/sounds/bell.mp3');
+}
+
+window.logoutStore = () => {
+    localStorage.removeItem('loggedStore');
+    window.location.href = 'login-vendedor.html';
+};
+
 // ==========================================
-// GESTÃO DE PEDIDOS
+// PEDIDOS (TEMPO REAL)
 // ==========================================
 async function initRealtimeOrders() {
-    const { data, error } = await supabase
+    const { data } = await supabase
         .from('orders')
         .select('*')
         .eq('storeId', loggedStore.id)
         .order('timestamp', { ascending: false });
 
-    if (!error && data) {
+    if (data) {
         globalOrders = data;
         renderOrders();
     }
 
-    // Tempo Real
-    supabase.channel('orders-channel')
+    realtimeOrdersChannel = supabase.channel('orders-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `storeId=eq.${loggedStore.id}` }, payload => {
-            if (payload.eventType === 'INSERT') globalOrders.unshift(payload.new);
-            else if (payload.eventType === 'UPDATE') {
+            if (payload.eventType === 'INSERT') {
+                globalOrders.unshift(payload.new);
+                customAlertSound.play();
+                window.showToast("🔔 Novo Pedido!", "success");
+            } else if (payload.eventType === 'UPDATE') {
                 const idx = globalOrders.findIndex(o => o.id === payload.new.id);
                 if (idx !== -1) globalOrders[idx] = payload.new;
             }
             renderOrders();
-        }).subscribe();
+        })
+        .subscribe();
 }
 
-function renderOrders() {
-    // Lógica de renderização no Kanban (Pendente, Preparo, Rota, Concluido)
-    // ... [Use a mesma lógica de filtros por status que já tínhamos]
-}
+window.renderOrders = () => {
+    // Adicione aqui a sua lógica de renderização baseada em globalOrders
+    console.log("Pedidos atualizados:", globalOrders);
+};
 
 window.updateOrderStatus = async (orderId, newStatus) => {
     await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
 };
 
 // ==========================================
-// GESTÃO DO CARDÁPIO (PRODUTOS)
+// PRODUTOS
 // ==========================================
 async function loadProducts() {
-    const { data, error } = await supabase.from('products').select('*').eq('storeId', loggedStore.id);
-    if (!error && data) {
+    const { data } = await supabase.from('products').select('*').eq('storeId', loggedStore.id);
+    if (data) {
         globalProducts = data;
         renderProducts();
     }
@@ -93,34 +105,58 @@ async function loadProducts() {
 function renderProducts() {
     const container = document.getElementById('product-list-container');
     container.innerHTML = globalProducts.map(p => `
-        <div class="product-row" onclick="window.editProduct('${p.id}')">
-            <img src="${p.image || ''}" class="row-img">
+        <div class="product-row">
             <div class="row-info">
                 <div class="row-name">${p.name}</div>
-                <div class="row-sub">R$ ${p.price.toFixed(2)} • ${p.category || 'Geral'}</div>
+                <div class="row-sub">R$ ${p.price.toFixed(2)}</div>
             </div>
-            <button class="btn btn-outline" onclick="window.deleteProduct('${p.id}', event)">Excluir</button>
+            <button onclick="window.deleteProduct('${p.id}')">Excluir</button>
         </div>
     `).join('');
 }
 
-window.deleteProduct = async (id, event) => {
-    event.stopPropagation();
-    if(confirm("Apagar produto?")) {
-        await supabase.from('products').delete().eq('id', id);
-        loadProducts();
-    }
+window.deleteProduct = async (id) => {
+    await supabase.from('products').delete().eq('id', id);
+    loadProducts();
 };
 
 // ==========================================
-// ABRIR E FECHAR LOJA
+// CHAT
+// ==========================================
+window.openChatModal = async (orderId, customerName) => {
+    currentChatOrderId = orderId;
+    document.getElementById('chat-customer-name').innerText = customerName;
+    document.getElementById('chat-modal').classList.add('active');
+
+    const { data: msgs } = await supabase
+        .from('order_messages')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('timestamp', { ascending: true });
+    
+    // Renderize as mensagens...
+};
+
+document.getElementById('chat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = document.getElementById('chat-input').value;
+    await supabase.from('order_messages').insert([{
+        order_id: currentChatOrderId,
+        text: text,
+        sender: 'store',
+        timestamp: Date.now(),
+        timeString: new Date().toLocaleTimeString()
+    }]);
+    document.getElementById('chat-input').value = '';
+});
+
+// ==========================================
+// STATUS DA LOJA
 // ==========================================
 window.toggleStoreStatus = async () => {
     const toggle = document.getElementById('btn-toggle-status');
-    const newStatus = toggle.checked ? 'Aberto' : 'Fechado';
-    
-    toggle.className = toggle.checked ? 'store-status-toggle status-open' : 'store-status-toggle status-closed';
-    
-    await supabase.from('stores').update({ status: newStatus }).eq('id', loggedStore.id);
-    window.alert("Loja " + newStatus);
+    const status = toggle.checked ? 'Aberto' : 'Fechado';
+    await supabase.from('stores').update({ status }).eq('id', loggedStore.id);
 };
+
+window.showToast = (msg, type) => { /* Sua lógica de toast */ };
