@@ -167,22 +167,12 @@
     </nav>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        // SUA CONFIGURAÇÃO OFICIAL
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // Verifica Sessão do Usuário
         const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
         const isLogged = !!loggedCustomer || localStorage.getItem('isLogged') === 'true'; 
         let userName = loggedCustomer ? loggedCustomer.name : localStorage.getItem('userName');
@@ -195,9 +185,9 @@
         async function loadCities(userSavedCity) {
             const citySelect = document.getElementById('p-cidade');
             try {
-                const citiesSnap = await getDocs(collection(db, "cities"));
-                let cities = [];
-                citiesSnap.forEach(doc => { cities.push(doc.data()); });
+                const { data: cities, error } = await supabase.from('cities').select('*');
+                if (error) throw error;
+                
                 cities.sort((a, b) => a.name.localeCompare(b.name));
 
                 let html = '<option value="">Selecione sua cidade...</option>';
@@ -207,7 +197,6 @@
                 });
                 citySelect.innerHTML = html;
 
-                // Se o usuário já tiver uma cidade salva, seleciona ela automaticamente
                 if (userSavedCity) {
                     citySelect.value = userSavedCity;
                 }
@@ -229,34 +218,27 @@
                 document.getElementById('user-email').innerText = userEmail || '';
                 if(userName) document.getElementById('user-avatar').innerText = userName.charAt(0).toUpperCase();
 
-                // Busca todos os dados do banco de dados para mostrar na tela
                 try {
-                    const q = query(collection(db, "customers"), where("email", "==", userEmail));
-                    const querySnapshot = await getDocs(q);
+                    const { data, error } = await supabase.from('customers').select('*').eq('email', userEmail);
                     
-                    if (!querySnapshot.empty) {
-                        querySnapshot.forEach((documento) => {
-                            userDocId = documento.id; 
-                            fullUserData = documento.data(); 
+                    if (data && data.length > 0) {
+                        fullUserData = data[0]; 
+                        userDocId = fullUserData.id; 
+                        
+                        let savedCity = fullUserData.city || '';
+                        
+                        if(fullUserData.address) {
+                            document.getElementById('p-rua').value = fullUserData.address.rua || '';
+                            document.getElementById('p-num').value = fullUserData.address.num || '';
+                            document.getElementById('p-bairro').value = fullUserData.address.bairro || '';
+                            document.getElementById('p-comp').value = fullUserData.address.comp || '';
                             
-                            // Tenta pegar a cidade da raiz do cadastro novo, se não achar tenta do endereço antigo
-                            let savedCity = fullUserData.city || '';
-                            
-                            if(fullUserData.address) {
-                                document.getElementById('p-rua').value = fullUserData.address.rua || '';
-                                document.getElementById('p-num').value = fullUserData.address.num || '';
-                                document.getElementById('p-bairro').value = fullUserData.address.bairro || '';
-                                document.getElementById('p-comp').value = fullUserData.address.comp || '';
-                                
-                                // Puxa do endereço antigo se a raiz estiver vazia
-                                if(!savedCity && fullUserData.address.cidade) {
-                                    savedCity = fullUserData.address.cidade;
-                                }
+                            if(!savedCity && fullUserData.address.cidade) {
+                                savedCity = fullUserData.address.cidade;
                             }
-                            
-                            // Carrega a lista de cidades e já preenche com a cidade atual do usuário
-                            loadCities(savedCity);
-                        });
+                        }
+                        
+                        loadCities(savedCity);
                     }
                 } catch(e) {
                     console.error("Erro ao buscar dados do perfil:", e);
@@ -264,12 +246,12 @@
             }
         };
 
-        // Função para salvar o endereço no Firebase
+        // Função para salvar o endereço no Supabase
         window.saveAddress = async () => {
             const rua = document.getElementById('p-rua').value.trim();
             const num = document.getElementById('p-num').value.trim();
             const bairro = document.getElementById('p-bairro').value.trim();
-            const cidade = document.getElementById('p-cidade').value; // Pega do dropdown
+            const cidade = document.getElementById('p-cidade').value; 
             const comp = document.getElementById('p-comp').value.trim();
 
             if (!rua || !num || !bairro || !cidade) {
@@ -287,12 +269,11 @@
             btn.disabled = true;
 
             try {
-                await updateDoc(doc(db, "customers", userDocId), {
-                    city: cidade, // Mantém a cidade sincronizada com o painel inicial
+                await supabase.from('customers').update({
+                    city: cidade,
                     address: { rua, num, bairro, cidade, comp }
-                });
+                }).eq('id', userDocId);
                 
-                // Atualiza o localStorage para refletir a nova cidade imediatamente na tela principal
                 localStorage.setItem('userCity', cidade);
                 
                 alert("Endereço salvo com sucesso! Ele será usado automaticamente em suas próximas compras.");
@@ -356,7 +337,7 @@
                     dataToUpdate.password = newPass; 
                 }
 
-                await updateDoc(doc(db, "customers", userDocId), dataToUpdate);
+                await supabase.from('customers').update(dataToUpdate).eq('id', userDocId);
 
                 let storedCust = JSON.parse(localStorage.getItem('loggedCustomer')) || {};
                 storedCust.name = newName;
@@ -399,7 +380,7 @@
 
             if (confirmAction) {
                 try {
-                    await deleteDoc(doc(db, "customers", userDocId));
+                    await supabase.from('customers').delete().eq('id', userDocId);
                     alert("Sua conta foi excluída com sucesso.");
                     
                     localStorage.removeItem('loggedCustomer');
