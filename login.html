@@ -235,7 +235,17 @@
                     email, password: pass,
                     options: { data: { name, phone, city } }
                 });
-                if (error) { showAlert(error.message, 'error'); btnSubmit.disabled = false; btnSubmit.innerText = 'Criar conta'; return; }
+                if (error) {
+                    const msg = error.message?.includes('already registered') || error.message?.includes('already been registered')
+                        ? 'Este e-mail já está cadastrado. Faça login.'
+                        : error.message || 'Erro ao criar conta. Tente novamente.';
+                    showAlert(msg, 'error'); btnSubmit.disabled = false; btnSubmit.innerText = 'Criar conta'; return;
+                }
+                // Se não há sessão, o Supabase exige confirmação de e-mail
+                if (!data.session) {
+                    showAlert('Verifique seu e-mail para confirmar a conta antes de entrar.', 'success');
+                    btnSubmit.disabled = false; btnSubmit.innerText = 'Criar conta'; return;
+                }
                 await supabase.from('customers').insert([{
                     auth_id: data.user.id, name, email, phone, city,
                     createdAt: new Date().toISOString()
