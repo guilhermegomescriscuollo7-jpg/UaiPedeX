@@ -23,11 +23,13 @@ const formatBRL = (value) => value.toLocaleString('pt-BR', { style: 'currency', 
 const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 // ==========================================
-// 🟢 SISTEMA DE LOGIN VIA SESSÃO
+// 🟢 SISTEMA DE LOGIN NATIVO (SUPABASE AUTH)
 // ==========================================
-const initAdminPanel = () => {
-    const isAdminLogged = sessionStorage.getItem('adminAuth');
-    if(isAdminLogged === 'true') {
+const initAdminPanel = async () => {
+    // Verifica a sessão criptografada direto com o Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if(session) {
         const appScreen = document.getElementById('app-screen');
         if(appScreen) {
             appScreen.style.display = 'flex'; 
@@ -40,9 +42,9 @@ const initAdminPanel = () => {
 
 initAdminPanel();
 
-window.logoutAdmin = () => {
+window.logoutAdmin = async () => {
     if(confirm("Deseja sair do painel administrativo?")) {
-        sessionStorage.removeItem('adminAuth');
+        await supabase.auth.signOut();
         window.location.href = 'loginadm.html';
     }
 };
