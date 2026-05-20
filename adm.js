@@ -26,10 +26,11 @@ const generateId = () => Math.random().toString(36).substring(2, 15) + Math.rand
 // 🟢 SISTEMA DE LOGIN NATIVO (SUPABASE AUTH)
 // ==========================================
 const initAdminPanel = async () => {
-    // Verifica a sessão criptografada direto com o Supabase
+    // Verifica a sessão criptografada direto com o Supabase E o SessionStorage
     const { data: { session } } = await supabase.auth.getSession();
+    const localAuth = sessionStorage.getItem('adminAuth');
     
-    if(session) {
+    if(session && localAuth === 'true') {
         const appScreen = document.getElementById('app-screen');
         if(appScreen) {
             appScreen.style.display = 'flex'; 
@@ -44,7 +45,9 @@ initAdminPanel();
 
 window.logoutAdmin = async () => {
     if(confirm("Deseja sair do painel administrativo?")) {
+        // Limpa os DOIS sistemas para garantir que não haja loop
         await supabase.auth.signOut();
+        sessionStorage.removeItem('adminAuth');
         window.location.href = 'loginadm.html';
     }
 };
@@ -469,7 +472,7 @@ async function fetchStores() {
 }
 
 window.saveStore = async (event) => { 
-    if (event) event.preventDefault(); // <--- PREVINE RECARREGAMENTO DE TELA SÚBITO
+    if (event) event.preventDefault(); 
 
     const name = document.getElementById('s-name').value.trim(); 
     const docId = document.getElementById('s-doc').value.trim() || null; 
@@ -491,7 +494,6 @@ window.saveStore = async (event) => {
         if(allStores.find(s => s.email === email && s.id !== editingStoreId)) return alert("Já existe loja com este e-mail."); 
         if (storeImgBase64) storeData.logo = storeImgBase64; 
         
-        // ADICIONADO .select() PARA VALIDAR SE O RLS DO BANCO BLOQUEOU A EDIÇÃO SILENCIOSAMENTE
         const { data, error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId).select(); 
         
         if (error) { 
