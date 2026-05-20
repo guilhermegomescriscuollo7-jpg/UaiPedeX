@@ -22,10 +22,14 @@
                         if (session) {
                             supabase.from('drivers')
                                 .update({ onesignal_player_id: playerId })
-                                .eq('auth_id', session.user.id);
+                                .eq('auth_id', session.user.id)
+                                .then(({ error }) => {
+                                    if (error) console.error('OneSignal: failed to save player_id', error);
+                                })
+                                .catch(err => console.error('OneSignal: unexpected error', err));
                         }
-                    });
-                });
+                    }).catch(err => console.error('OneSignal: getSession failed', err));
+                }).catch(err => console.error('OneSignal: import failed', err));
             }
         });
     </script>
@@ -494,7 +498,14 @@
             .eq('auth_id', session.user.id)
             .single();
 
-        const driverId = driverProfile?.id;
+        if (!driverProfile) {
+            alert('Perfil de entregador não encontrado. Contate o suporte.');
+            await supabase.auth.signOut();
+            window.location.href = 'login-entregador.html';
+            throw new Error('No driver profile');
+        }
+
+        const driverId = driverProfile.id;
 
         // Mantém compatibilidade com variável loggedDriver usada no restante do código
         let loggedDriver = {
@@ -568,7 +579,7 @@
 
             // ── Listener de status online/offline do driver ──────────────────
             supabase
-                .channel('driver-status')
+                .channel(`driver-status-${driverId}`)
                 .on('postgres_changes', {
                     event: 'UPDATE',
                     schema: 'public',
@@ -658,6 +669,7 @@
                 } catch(e) {
                     console.log("Erro ao ficar offline (ignorado):", e);
                 } finally {
+                    await supabase.removeAllChannels();
                     await logout('login-entregador.html');
                 }
             }
@@ -1056,12 +1068,18 @@
 
         window.acceptOrder = async (id) => {
             document.getElementById('btn-accept-route').innerText = "Aguarde...";
-            await supabase.from('orders').update({
+            const { data: updated, error } = await supabase.from('orders').update({
                 status: 'Saiu para Entrega',
                 driverId: driverId,
                 driverName: loggedDriver.name,
                 driverPhone: ''
-            }).eq('id', id);
+            }).eq('id', id).eq('status', 'Pendente').select();
+
+            if (error || !updated || updated.length === 0) {
+                document.getElementById('btn-accept-route').innerText = "Montar rota com esse pedido";
+                alert('Este pedido já foi aceito por outro entregador.');
+                return;
+            }
             window.closeOrderDetails();
             window.closeOrderList();
             window.switchTab('em-rota');
@@ -1106,6 +1124,10 @@
         };
 
         window.playAlertSound = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(); osc.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5); } catch(e){} };
+
+        window.addEventListener('beforeunload', () => {
+            supabase.removeAllChannels();
+        });
     </script>
 </body>
 </html>
