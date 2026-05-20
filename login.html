@@ -138,295 +138,123 @@
     </div>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabase } from './js/supabase-client.js';
+    import { saveCustomerSession } from './js/auth.js';
 
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+    // Redirect if already logged in as customer
+    const { data: { session: existingSession } } = await supabase.auth.getSession();
+    if (existingSession && existingSession.user.app_metadata?.role === 'customer') {
+        window.location.href = 'index.html';
+    }
 
-        const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-
-        if (localStorage.getItem('isLogged') === 'true') {
-            window.location.href = "index.html";
+    const citySelect = document.getElementById('regCity');
+    async function loadCities() {
+        try {
+            const { data: cities, error } = await supabase.from('cities').select('*');
+            if (error) throw error;
+            cities.sort((a, b) => a.name.localeCompare(b.name));
+            if (cities.length === 0) { citySelect.innerHTML = '<option value="">Nenhuma cidade disponível</option>'; return; }
+            citySelect.innerHTML = '<option value="">Selecione sua cidade...</option>' +
+                cities.map(c => `<option value="${c.name} - ${c.state}">${c.name} - ${c.state}</option>`).join('');
+        } catch (e) {
+            if (citySelect) citySelect.innerHTML = '<option value="">Erro ao carregar</option>';
         }
+    }
+    if (citySelect) loadCities();
 
-        const citySelect = document.getElementById('regCity');
-        async function loadCities() {
-            try {
-                const { data: cities, error } = await supabase.from('cities').select('*');
-                if (error) throw error;
-                
-                cities.sort((a, b) => a.name.localeCompare(b.name));
+    let isRegisterMode = false;
 
-                if (cities.length === 0) {
-                    citySelect.innerHTML = '<option value="">Nenhuma cidade disponível</option>';
-                    return;
-                }
+    function showAlert(msg, type) {
+        const alertBox = document.getElementById('alert-msg');
+        if (!alertBox) return;
+        alertBox.innerText = msg;
+        alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
+        alertBox.style.display = 'block';
+        if (type === 'error') setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
+    }
 
-                citySelect.innerHTML = '<option value="">Selecione sua cidade...</option>' + 
-                    cities.map(c => `<option value="${c.name} - ${c.state}">${c.name} - ${c.state}</option>`).join('');
-            } catch (error) {
-                console.error("Erro ao carregar cidades:", error);
-                citySelect.innerHTML = '<option value="">Erro ao carregar</option>';
-            }
-        }
-        
-        loadCities();
-
-        let isRegisterMode = false;
-        
-        function showAlert(msg, type) {
-            const alertBox = document.getElementById('alert-msg');
-            alertBox.innerText = msg;
-            alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
-            alertBox.style.display = 'block';
-            if(type === 'error') {
-                setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
-            }
-        }
-
-        function saveLocalSession(userData) {
-            localStorage.setItem('loggedCustomer', JSON.stringify({ 
-                name: userData.name, 
-                email: userData.email, 
-                phone: userData.phone || '',
-                city: userData.city || ''
-            }));
-            localStorage.setItem('isLogged', 'true');
-            localStorage.setItem('userEmail', userData.email);
-            localStorage.setItem('userName', userData.name);
-            
-            if (userData.city) {
-                localStorage.setItem('userCity', userData.city);
-            }
-        }
-
-        window.toggleMode = () => {
-            isRegisterMode = !isRegisterMode;
-            
-            const title = document.getElementById('title-text');
-            const btnSubmit = document.getElementById('btn-submit');
-            const toggleText = document.getElementById('toggle-text');
-            const registerFields = document.getElementById('register-fields');
-            const forgotPassword = document.getElementById('forgot-password');
-            
-            if (isRegisterMode) {
-                title.innerText = "Criar Conta";
-                btnSubmit.innerText = "Cadastrar";
-                toggleText.innerHTML = `Já tem uma conta? <span class="toggle-link" onclick="window.toggleMode()">Faça Login</span>`;
-                registerFields.style.display = "block";
-                forgotPassword.style.display = "none";
-                
-                document.getElementById('name').required = true;
-                document.getElementById('phone').required = true;
-                document.getElementById('regCity').required = true;
-            } else {
-                title.innerText = "Bem-vindo(a)";
-                btnSubmit.innerText = "Entrar";
-                toggleText.innerHTML = `Ainda não tem conta? <span class="toggle-link" onclick="window.toggleMode()">Cadastre-se</span>`;
-                registerFields.style.display = "none";
-                forgotPassword.style.display = "block";
-                
-                document.getElementById('name').required = false;
-                document.getElementById('phone').required = false;
-                document.getElementById('regCity').required = false;
-            }
-        };
-
-        // ==========================================
-        // LÓGICA DE RECUPERAÇÃO DE SENHA 
-        // ==========================================
-        let idDocumentoRecuperacao = null; 
-
-        window.toggleRecoveryMode = () => {
-            const authSection = document.getElementById('auth-section');
-            const recoverySection = document.getElementById('recovery-section');
-            const title = document.getElementById('title-text');
-
-            if (recoverySection.style.display === "none") {
-                authSection.style.display = "none";
-                recoverySection.style.display = "block";
-                title.innerText = "Recuperar Senha";
-                
-                document.getElementById('recovery-step-1').style.display = "block";
-                document.getElementById('recovery-step-2').style.display = "none";
-                document.getElementById('rec-email').value = document.getElementById('email').value; 
-                document.getElementById('rec-phone').value = '';
-                document.getElementById('rec-new-pass').value = '';
-                idDocumentoRecuperacao = null;
-                document.getElementById('alert-msg').style.display = 'none';
-            } else {
-                authSection.style.display = "block";
-                recoverySection.style.display = "none";
-                title.innerText = isRegisterMode ? "Criar Conta" : "Bem-vindo(a)";
-                document.getElementById('alert-msg').style.display = 'none';
-            }
-        };
-
-        window.validateRecovery = async () => {
-            const email = document.getElementById('rec-email').value.trim();
-            const phone = document.getElementById('rec-phone').value.trim();
-            const btn = document.getElementById('btn-validate');
-
-            if (!email || !phone) {
-                showAlert("❌ Preencha o e-mail e o celular para continuar.", "error");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "Procurando...";
-
-            try {
-                const { data, error } = await supabase.from('customers').select('*').eq('email', email).eq('phone', phone);
-
-                if (error || data.length === 0) {
-                    showAlert("❌ Dados incorretos ou não encontrados. Verifique a digitação.", "error");
-                    btn.disabled = false;
-                    btn.innerText = "Validar Dados";
-                    return;
-                }
-
-                idDocumentoRecuperacao = data[0].id;
-
-                showAlert("✅ Identidade confirmada! Crie sua nova senha.", "success");
-                
-                document.getElementById('recovery-step-1').style.display = "none";
-                document.getElementById('recovery-step-2').style.display = "block";
-                btn.disabled = false;
-                btn.innerText = "Validar Dados";
-
-            } catch (error) {
-                console.error("Erro ao buscar dados:", error);
-                showAlert("❌ Erro de conexão com o servidor.", "error");
-                btn.disabled = false;
-                btn.innerText = "Validar Dados";
-            }
-        };
-
-        window.updatePassword = async () => {
-            const newPass = document.getElementById('rec-new-pass').value.trim();
-            const btn = document.getElementById('btn-reset-pass');
-
-            if (!newPass || newPass.length < 6) {
-                showAlert("❌ A nova senha deve ter no mínimo 6 caracteres.", "error");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "Salvando...";
-
-            try {
-                await supabase.from('customers').update({ password: newPass }).eq('id', idDocumentoRecuperacao);
-
-                showAlert("✅ Senha atualizada com sucesso! Faça login.", "success");
-                
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.innerText = "Salvar Nova Senha";
-                    document.getElementById('email').value = document.getElementById('rec-email').value;
-                    document.getElementById('pass').value = newPass;
-                    window.toggleRecoveryMode();
-                }, 2000);
-
-            } catch (error) {
-                console.error("Erro ao salvar senha:", error);
-                showAlert("❌ Erro ao atualizar a senha.", "error");
-                btn.disabled = false;
-                btn.innerText = "Salvar Nova Senha";
-            }
-        };
-
-        // ==========================================
-        // LÓGICA DE LOGIN E CADASTRO PADRÃO
-        // ==========================================
-        const form = document.getElementById('auth-form');
+    window.toggleMode = () => {
+        isRegisterMode = !isRegisterMode;
+        const title = document.getElementById('title-text');
         const btnSubmit = document.getElementById('btn-submit');
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); 
-            
-            const email = document.getElementById('email').value.trim();
-            const pass = document.getElementById('pass').value.trim();
-
-            if (!email || !pass) {
-                showAlert("❌ Preencha todos os campos obrigatórios.", "error");
-                return;
-            }
-
-            btnSubmit.disabled = true;
-            btnSubmit.innerText = "Aguarde...";
-
-            try {
-                if (isRegisterMode) {
-                    const name = document.getElementById('name').value.trim();
-                    const phone = document.getElementById('phone').value.trim();
-                    const city = document.getElementById('regCity').value;
-
-                    if (!city) {
-                        showAlert("❌ Por favor, selecione sua cidade.", "error");
-                        btnSubmit.disabled = false;
-                        btnSubmit.innerText = "Cadastrar";
-                        return;
-                    }
-
-                    const { data: checkData } = await supabase.from('customers').select('*').eq('email', email);
-
-                    if (checkData.length > 0) {
-                        showAlert("❌ Este e-mail já está cadastrado. Faça login.", "error");
-                        btnSubmit.disabled = false;
-                        btnSubmit.innerText = "Cadastrar";
-                        return;
-                    }
-
-                    const newUser = { id: generateId(), name, email, phone, city, password: pass, createdAt: Date.now() };
-                    await supabase.from('customers').insert([newUser]);
-
-                    saveLocalSession(newUser);
-                    showAlert("✅ Conta criada com sucesso!", "success");
-                    
-                    setTimeout(() => { window.location.href = "index.html"; }, 800);
-
-                } else {
-                    const { data } = await supabase.from('customers').select('*').eq('email', email).eq('password', pass);
-
-                    if (data.length === 0) {
-                        showAlert("❌ E-mail ou senha incorretos.", "error");
-                        document.getElementById('pass').value = '';
-                        btnSubmit.disabled = false;
-                        btnSubmit.innerText = "Entrar";
-                        return;
-                    }
-
-                    let userData = data[0];
-
-                    saveLocalSession(userData);
-                    showAlert("✅ Login efetuado! Redirecionando...", "success");
-                    
-                    setTimeout(() => { window.location.href = "index.html"; }, 800);
-                }
-
-            } catch (error) {
-                console.error("Erro na autenticação:", error);
-                showAlert("❌ Erro de conexão com o servidor. Tente novamente.", "error");
-                btnSubmit.disabled = false;
-                btnSubmit.innerText = isRegisterMode ? "Cadastrar" : "Entrar";
-            }
-        });
-
-        // ==========================================
-        // Registro do Service Worker para o PWA
-        // ==========================================
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('Service Worker registrado com sucesso no Login.');
-                    })
-                    .catch((error) => {
-                        console.log('Falha ao registrar o Service Worker:', error);
-                    });
-            });
+        const toggleText = document.getElementById('toggle-text');
+        const registerFields = document.getElementById('register-fields');
+        if (isRegisterMode) {
+            if (title) title.innerText = 'Criar conta';
+            if (btnSubmit) btnSubmit.innerText = 'Criar conta';
+            if (toggleText) toggleText.innerHTML = 'Já tem conta? <span class="toggle-link" onclick="window.toggleMode()">Faça login</span>';
+            if (registerFields) registerFields.style.display = 'block';
+        } else {
+            if (title) title.innerText = 'Entrar';
+            if (btnSubmit) btnSubmit.innerText = 'Entrar';
+            if (toggleText) toggleText.innerHTML = 'Não tem conta? <span class="toggle-link" onclick="window.toggleMode()">Cadastre-se</span>';
+            if (registerFields) registerFields.style.display = 'none';
         }
-    </script>
+    };
+
+    window.toggleRecoveryMode = () => {
+        const recoverySection = document.getElementById('recovery-section');
+        const mainSection = document.getElementById('main-section');
+        if (recoverySection) recoverySection.style.display = recoverySection.style.display === 'none' ? 'block' : 'none';
+        if (mainSection) mainSection.style.display = mainSection.style.display === 'none' ? 'block' : 'none';
+    };
+
+    // Password recovery
+    const recoverBtn = document.getElementById('btn-recover');
+    if (recoverBtn) {
+        recoverBtn.addEventListener('click', async () => {
+            const email = document.getElementById('recover-email')?.value?.trim();
+            if (!email) return showAlert('Informe seu e-mail.', 'error');
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/reset-password.html'
+            });
+            if (error) return showAlert('Erro ao enviar e-mail. Verifique o endereço.', 'error');
+            showAlert('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'success');
+        });
+    }
+
+    // Login / Register
+    const btnSubmit = document.getElementById('btn-submit');
+    if (btnSubmit) {
+        btnSubmit.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email')?.value?.trim();
+            const pass  = document.getElementById('pass')?.value?.trim();
+            btnSubmit.disabled = true;
+
+            if (isRegisterMode) {
+                const name  = document.getElementById('reg-name')?.value?.trim();
+                const phone = document.getElementById('reg-phone')?.value?.trim();
+                const city  = citySelect?.value || '';
+                if (!name || !email || !pass || pass.length < 6) {
+                    showAlert('Preencha todos os campos. Senha mínima: 6 caracteres.', 'error');
+                    btnSubmit.disabled = false; return;
+                }
+                btnSubmit.innerText = 'Criando conta...';
+                const { data, error } = await supabase.auth.signUp({
+                    email, password: pass,
+                    options: { data: { name, phone, city } }
+                });
+                if (error) { showAlert(error.message, 'error'); btnSubmit.disabled = false; btnSubmit.innerText = 'Criar conta'; return; }
+                await supabase.from('customers').insert([{
+                    auth_id: data.user.id, name, email, phone, city,
+                    createdAt: new Date().toISOString()
+                }]);
+                saveCustomerSession(data.user, { name, email, phone, city });
+                showAlert('Conta criada! Bem-vindo.', 'success');
+                setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+            } else {
+                btnSubmit.innerText = 'Entrando...';
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+                if (error) { showAlert('E-mail ou senha incorretos.', 'error'); btnSubmit.disabled = false; btnSubmit.innerText = 'Entrar'; return; }
+                if (data.user.app_metadata?.must_reset_password) { window.location.href = 'reset-password.html'; return; }
+                const { data: profile } = await supabase.from('customers').select('name, phone, city').eq('auth_id', data.user.id).single();
+                saveCustomerSession(data.user, profile || { name: data.user.email });
+                window.location.href = 'index.html';
+            }
+            btnSubmit.disabled = false;
+        });
+    }
+</script>
 </body>
 </html>
