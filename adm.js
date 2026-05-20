@@ -25,22 +25,19 @@ const generateId = () => Math.random().toString(36).substring(2, 15) + Math.rand
 // ==========================================
 // 🟢 SISTEMA DE LOGIN VIA SESSÃO (CORRIGIDO)
 // ==========================================
-// Removido o window.onload para evitar atraso no carregamento do módulo.
-// O código agora executa imediatamente assim que o JS é lido.
 const initAdminPanel = () => {
     const isAdminLogged = sessionStorage.getItem('adminAuth');
     if(isAdminLogged === 'true') {
         const appScreen = document.getElementById('app-screen');
         if(appScreen) {
-            appScreen.style.display = 'flex'; // Remove a tela branca
-            loadAllData(); // Carrega os dados do banco
+            appScreen.style.display = 'flex'; 
+            loadAllData(); 
         }
     } else {
         window.location.href = 'loginadm.html';
     }
 };
 
-// Dispara a inicialização
 initAdminPanel();
 
 window.logoutAdmin = () => {
@@ -153,8 +150,9 @@ window.saveAudioAlert = async () => {
 
 window.deleteAudioAlert = async () => {
     if(confirm("Remover áudio personalizado e voltar para o padrão?")) {
-        await supabase.from('global_settings').delete().eq('id', 'notification_audio');
-        alert("Áudio restaurado!"); fetchSettingsAudio();
+        const { error } = await supabase.from('global_settings').delete().eq('id', 'notification_audio');
+        if (error) alert("Erro ao remover: " + error.message);
+        else { alert("Áudio restaurado!"); fetchSettingsAudio(); }
     }
 };
 
@@ -214,8 +212,9 @@ window.saveSplashVideo = async () => {
 
 window.deleteSplashVideo = async () => {
     if(confirm("Remover vídeo de abertura e usar o padrão?")) {
-        await supabase.from('global_settings').delete().eq('id', 'splash_video');
-        alert("Vídeo restaurado!"); fetchSettingsVideo();
+        const { error } = await supabase.from('global_settings').delete().eq('id', 'splash_video');
+        if (error) alert("Erro ao remover: " + error.message);
+        else { alert("Vídeo restaurado!"); fetchSettingsVideo(); }
     }
 };
 
@@ -250,8 +249,9 @@ window.saveCity = async () => {
 
 window.deleteCity = async (id) => {
     if(confirm("Tem a certeza que deseja apagar esta cidade?")) {
-        await supabase.from('cities').delete().eq('id', id);
-        fetchCities();
+        const { error } = await supabase.from('cities').delete().eq('id', id);
+        if (error) alert("Erro ao deletar: " + error.message);
+        else fetchCities();
     }
 };
 
@@ -340,12 +340,16 @@ window.filterUsers = () => {
 };
 
 window.toggleSicoobStatus = async (userId, isNowSicoob) => {
-    await supabase.from('customers').update({ isSicoob: isNowSicoob }).eq('id', userId); fetchUsers();
+    const { error } = await supabase.from('customers').update({ isSicoob: isNowSicoob }).eq('id', userId); 
+    if (error) alert("Erro ao atualizar Sicoob: " + error.message);
+    else fetchUsers();
 };
 
 window.deleteUser = async (userId, userName) => {
     if (confirm(`Tem a certeza que deseja excluir ${userName}?`)) {
-        await supabase.from('customers').delete().eq('id', userId); fetchUsers();
+        const { error } = await supabase.from('customers').delete().eq('id', userId); 
+        if (error) alert("Erro ao excluir cliente: " + error.message);
+        else fetchUsers();
     }
 };
 
@@ -420,8 +424,16 @@ function renderAdminSponsorCoupons() {
     }).join('');
 }
 
-window.toggleAdminCoupon = async (id, isActive) => { await supabase.from('coupons').update({ active: isActive }).eq('id', id); fetchCoupons(); };
-window.deleteAdminCoupon = async (id) => { if(confirm("Apagar este cupão?")) { await supabase.from('coupons').delete().eq('id', id); fetchCoupons(); } };
+window.toggleAdminCoupon = async (id, isActive) => { 
+    const { error } = await supabase.from('coupons').update({ active: isActive }).eq('id', id); 
+    if(error) alert("Erro: " + error.message); else fetchCoupons();
+};
+window.deleteAdminCoupon = async (id) => { 
+    if(confirm("Apagar este cupão?")) { 
+        const { error } = await supabase.from('coupons').delete().eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchCoupons();
+    } 
+};
 
 // ==========================================
 // 6. LOJAS
@@ -464,11 +476,27 @@ window.saveStore = async () => {
     if (editingStoreId) { 
         if(allStores.find(s => s.email === email && s.id !== editingStoreId)) return alert("Já existe loja com este e-mail."); 
         if (storeImgBase64) storeData.logo = storeImgBase64; 
-        await supabase.from('stores').update(storeData).eq('id', editingStoreId); alert("Loja atualizada!"); 
+        
+        // CAPTURA DE ERRO NA ATUALIZAÇÃO DA LOJA
+        const { error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId); 
+        if (error) {
+            alert("ERRO NO BANCO DE DADOS:\n" + error.message);
+            console.error(error);
+            return;
+        }
+        alert("Loja atualizada!"); 
     } else { 
         if(allStores.find(s => s.email === email)) return alert("Já existe loja com este e-mail."); 
         storeData.id = generateId(); storeData.status = 'Aberto'; storeData.isActive = true; storeData.logo = storeImgBase64 || 'https://via.placeholder.com/60';
-        await supabase.from('stores').insert([storeData]); alert("Loja registada!"); 
+        
+        // CAPTURA DE ERRO NA CRIAÇÃO DA LOJA
+        const { error } = await supabase.from('stores').insert([storeData]); 
+        if (error) {
+            alert("ERRO NO BANCO DE DADOS:\n" + error.message);
+            console.error(error);
+            return;
+        }
+        alert("Loja registada!"); 
     } 
     window.cancelEdit(); fetchStores();
 };
@@ -494,13 +522,26 @@ window.cancelEdit = () => {
     storeImgBase64 = ''; document.getElementById('btn-save-store').innerHTML = `Registar Loja`; document.getElementById('btn-cancel-edit').style.display = "none"; 
 };
 
-window.toggleSubscription = async (id) => { const store = allStores.find(s => s.id === id); if (store) { await supabase.from('stores').update({ isActive: !store.isActive }).eq('id', id); fetchStores(); } };
-window.deleteStore = async (id) => { if(confirm("Apagar loja permanentemente?")) { await supabase.from('stores').delete().eq('id', id); fetchStores(); } };
+window.toggleSubscription = async (id) => { 
+    const store = allStores.find(s => s.id === id); 
+    if (store) { 
+        const { error } = await supabase.from('stores').update({ isActive: !store.isActive }).eq('id', id); 
+        if(error) alert("Erro ao alterar status: " + error.message); else fetchStores();
+    } 
+};
+
+window.deleteStore = async (id) => { 
+    if(confirm("Apagar loja permanentemente?")) { 
+        const { error } = await supabase.from('stores').delete().eq('id', id); 
+        if(error) alert("Erro ao deletar: " + error.message); else fetchStores();
+    } 
+};
 
 window.renewSubscription = async (storeId, currentDue) => {
     if(confirm("Renovar por 1 mês e ativar loja?")) {
         const date = new Date(Number(currentDue)); date.setMonth(date.getMonth() + 1);
-        await supabase.from('stores').update({ dueDate: date.getTime(), isActive: true }).eq('id', storeId); fetchStores();
+        const { error } = await supabase.from('stores').update({ dueDate: date.getTime(), isActive: true }).eq('id', storeId); 
+        if(error) alert("Erro ao renovar: " + error.message); else fetchStores();
     }
 };
 
@@ -625,9 +666,13 @@ window.saveDriver = async () => {
 
     if(!name || !email || !pass || !phone || !city) return alert("Preencha todos os dados."); 
     if (editingDriverId) { 
-        await supabase.from('drivers').update({ name, phone, email, password: pass, city }).eq('id', editingDriverId); alert("Atualizado!"); 
+        const { error } = await supabase.from('drivers').update({ name, phone, email, password: pass, city }).eq('id', editingDriverId); 
+        if(error) { alert("ERRO AO ATUALIZAR:\n" + error.message); return; }
+        alert("Atualizado!"); 
     } else { 
-        await supabase.from('drivers').insert([{ id: generateId(), name, phone, email, password: pass, city, isActive: true }]); alert("Registado!"); 
+        const { error } = await supabase.from('drivers').insert([{ id: generateId(), name, phone, email, password: pass, city, isActive: true }]); 
+        if(error) { alert("ERRO AO REGISTRAR:\n" + error.message); return; }
+        alert("Registado!"); 
     } 
     window.cancelEditDriver(); fetchDrivers();
 };
@@ -638,13 +683,27 @@ window.editDriver = (id) => {
     document.getElementById('d-email').value = driver.email; document.getElementById('d-pass').value = driver.password; document.getElementById('d-city').value = driver.city || '';
     document.getElementById('btn-save-driver').innerHTML = `Guardar Alterações`; document.getElementById('btn-cancel-driver-edit').style.display = "inline-flex"; 
 };
+
 window.cancelEditDriver = () => { 
     editingDriverId = null; document.getElementById('d-name').value = ''; document.getElementById('d-phone').value = ''; 
     document.getElementById('d-email').value = ''; document.getElementById('d-pass').value = ''; document.getElementById('d-city').value = '';
     document.getElementById('btn-save-driver').innerHTML = `Registar Entregador`; document.getElementById('btn-cancel-driver-edit').style.display = "none"; 
 };
-window.toggleDriverStatus = async (id) => { const driver = allDrivers.find(d => d.id === id); if (driver) { await supabase.from('drivers').update({ isActive: !driver.isActive }).eq('id', id); fetchDrivers(); } };
-window.deleteDriver = async (id) => { if(confirm("Apagar entregador?")) { await supabase.from('drivers').delete().eq('id', id); fetchDrivers(); } };
+
+window.toggleDriverStatus = async (id) => { 
+    const driver = allDrivers.find(d => d.id === id); 
+    if (driver) { 
+        const { error } = await supabase.from('drivers').update({ isActive: !driver.isActive }).eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchDrivers();
+    } 
+};
+
+window.deleteDriver = async (id) => { 
+    if(confirm("Apagar entregador?")) { 
+        const { error } = await supabase.from('drivers').delete().eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchDrivers();
+    } 
+};
 
 function renderDriverList() { 
     const container = document.getElementById('driver-list-container'); 
@@ -677,12 +736,17 @@ window.saveBanner = async () => {
     const city = document.getElementById('b-city').value; const storeId = document.getElementById('b-store').value; const linkUrl = document.getElementById('b-link').value.trim(); 
     if (!bannerImgBase64) return alert("Selecione uma imagem.");
     const { error } = await supabase.from('banners').insert([{ id: generateId(), image: bannerImgBase64, city, storeId, link: linkUrl, timestamp: Date.now() }]);
-    if(error) alert(error.message); else {
+    if(error) alert("Erro ao salvar banner:\n" + error.message); else {
         bannerImgBase64 = ''; document.getElementById('b-image').value = ''; document.getElementById('b-store').value = ''; document.getElementById('b-link').value = ''; alert("Banner adicionado!"); fetchBanners();
     }
 };
 
-window.deleteBanner = async (id) => { if(confirm("Remover banner?")) { await supabase.from('banners').delete().eq('id', id); fetchBanners(); } };
+window.deleteBanner = async (id) => { 
+    if(confirm("Remover banner?")) { 
+        const { error } = await supabase.from('banners').delete().eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchBanners();
+    } 
+};
 
 function renderBanners() {
     const container = document.getElementById('banner-list-container');
@@ -716,10 +780,15 @@ window.saveSponsor = async () => {
     const city = document.getElementById('sp-city').value; const duration = document.getElementById('sp-duration').value; const transition = document.getElementById('sp-transition').value;
     if (!sponsorImgBase64) return alert("Selecione a imagem.");
     const { error } = await supabase.from('sponsors').insert([{ id: generateId(), image: sponsorImgBase64, city, duration: parseInt(duration), transition, timestamp: Date.now() }]);
-    if(error) alert(error.message); else { sponsorImgBase64 = ''; document.getElementById('sp-image').value = ''; alert("Registado!"); fetchSponsors(); }
+    if(error) alert("Erro ao salvar:\n" + error.message); else { sponsorImgBase64 = ''; document.getElementById('sp-image').value = ''; alert("Registado!"); fetchSponsors(); }
 };
 
-window.deleteSponsor = async (id) => { if(confirm("Remover patrocinador?")) { await supabase.from('sponsors').delete().eq('id', id); fetchSponsors(); } };
+window.deleteSponsor = async (id) => { 
+    if(confirm("Remover patrocinador?")) { 
+        const { error } = await supabase.from('sponsors').delete().eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchSponsors();
+    } 
+};
 
 function renderSponsors() {
     const container = document.getElementById('sponsor-list-container');
@@ -748,9 +817,15 @@ window.saveAlert = async () => {
     const text = document.getElementById('alert-text').value.trim(); const type = document.getElementById('alert-type').value;
     if(!text) return alert("Digite o texto.");
     const { error } = await supabase.from('global_alerts').insert([{ id: generateId(), text, type, timestamp: Date.now(), active: true }]);
-    if(error) alert(error.message); else { document.getElementById('alert-text').value = ''; alert("Aviso disparado!"); fetchAlerts(); }
+    if(error) alert("Erro ao disparar aviso:\n" + error.message); else { document.getElementById('alert-text').value = ''; alert("Aviso disparado!"); fetchAlerts(); }
 }
-window.deleteAlert = async (id) => { if(confirm("Apagar aviso?")) { await supabase.from('global_alerts').delete().eq('id', id); fetchAlerts(); } }
+
+window.deleteAlert = async (id) => { 
+    if(confirm("Apagar aviso?")) { 
+        const { error } = await supabase.from('global_alerts').delete().eq('id', id); 
+        if(error) alert("Erro: " + error.message); else fetchAlerts();
+    } 
+}
 
 function renderAlerts() {
     const container = document.getElementById('alerts-list-container');
