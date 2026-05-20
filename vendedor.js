@@ -1,3 +1,9 @@
+import { supabase } from './js/supabase-client.js';
+import { requireRole } from './js/auth.js';
+
+const session = await requireRole('store', 'login-vendedor.html');
+if (!session) throw new Error('Not authenticated');
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, deleteDoc, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -58,9 +64,9 @@ let editingModifiers = [];
 window.currentCategoryFilter = 'Todas';
 
 const loggedStore = JSON.parse(localStorage.getItem('loggedStore'));
-if (!loggedStore || !loggedStore.id) { 
+if (!loggedStore || !loggedStore.id) {
     localStorage.removeItem('loggedStore');
-    window.location.href = 'login-vendedor.html'; 
+    window.location.href = 'login-vendedor.html';
 }
 
 document.getElementById('ui-store-name').innerText = loggedStore.name;
