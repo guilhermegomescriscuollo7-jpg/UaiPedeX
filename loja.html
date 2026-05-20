@@ -392,11 +392,11 @@
                     }
                 }
 
-                const { data: productsData } = await supabase.from('products').select('*').eq('storeId', storeIdParam).eq('active', true);
-                if (productsData) {
-                    currentStoreProducts = productsData;
-                    renderFullStore(s, dynamicStatus);
-                }
+                const { data: productsData, error: prodError } = await supabase
+                    .from('products').select('*').eq('storeId', storeIdParam);
+                if (prodError) console.error('Erro ao buscar produtos:', prodError);
+                currentStoreProducts = productsData || [];
+                renderFullStore(s, dynamicStatus);
 
             } catch (error) { console.error("Erro ao carregar loja:", error); }
         };

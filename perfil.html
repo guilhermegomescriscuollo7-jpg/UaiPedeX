@@ -174,12 +174,11 @@
         if (!session) throw new Error('Not authenticated');
 
         const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
-        const isLogged = true;
-        let userName = loggedCustomer ? loggedCustomer.name : localStorage.getItem('userName');
+        let userName = loggedCustomer ? loggedCustomer.name : (session.user.user_metadata?.name || session.user.email);
         let userEmail = loggedCustomer ? loggedCustomer.email : session.user.email;
 
         let userDocId = null;
-        let fullUserData = null; 
+        let fullUserData = null;
 
         // 🟢 CARREGAR CIDADES NO DROPDOWN 🟢
         async function loadCities(userSavedCity) {
@@ -206,45 +205,45 @@
             }
         }
 
-        window.onload = async () => {
-            if (!isLogged) {
-                document.getElementById('unlogged-state').style.display = 'block';
-                document.getElementById('logged-state').style.display = 'none';
-            } else {
-                document.getElementById('unlogged-state').style.display = 'none';
-                document.getElementById('logged-state').style.display = 'block';
+        // Inicializa direto — não usa window.onload para evitar race condition com top-level await
+        document.getElementById('unlogged-state').style.display = 'none';
+        document.getElementById('logged-state').style.display = 'block';
 
-                document.getElementById('user-name').innerText = userName || 'Cliente';
-                document.getElementById('user-email').innerText = userEmail || '';
-                if(userName) document.getElementById('user-avatar').innerText = userName.charAt(0).toUpperCase();
+        document.getElementById('user-name').innerText = userName || 'Cliente';
+        document.getElementById('user-email').innerText = userEmail || '';
+        if (userName) document.getElementById('user-avatar').innerText = userName.charAt(0).toUpperCase();
 
-                try {
-                    const { data, error } = await supabase.from('customers').select('*').eq('email', userEmail);
-                    
-                    if (data && data.length > 0) {
-                        fullUserData = data[0]; 
-                        userDocId = fullUserData.id; 
-                        
-                        let savedCity = fullUserData.city || '';
-                        
-                        if(fullUserData.address) {
-                            document.getElementById('p-rua').value = fullUserData.address.rua || '';
-                            document.getElementById('p-num').value = fullUserData.address.num || '';
-                            document.getElementById('p-bairro').value = fullUserData.address.bairro || '';
-                            document.getElementById('p-comp').value = fullUserData.address.comp || '';
-                            
-                            if(!savedCity && fullUserData.address.cidade) {
-                                savedCity = fullUserData.address.cidade;
-                            }
-                        }
-                        
-                        loadCities(savedCity);
-                    }
-                } catch(e) {
-                    console.error("Erro ao buscar dados do perfil:", e);
+        try {
+            const { data, error } = await supabase
+                .from('customers').select('*').eq('auth_id', session.user.id).single();
+
+            if (data) {
+                fullUserData = data;
+                userDocId = fullUserData.id;
+
+                // Atualiza nome/email com dados mais recentes do banco
+                if (fullUserData.name) {
+                    userName = fullUserData.name;
+                    document.getElementById('user-name').innerText = fullUserData.name;
+                    document.getElementById('user-avatar').innerText = fullUserData.name.charAt(0).toUpperCase();
                 }
+
+                let savedCity = fullUserData.city || '';
+                if (fullUserData.address) {
+                    document.getElementById('p-rua').value    = fullUserData.address.rua    || '';
+                    document.getElementById('p-num').value    = fullUserData.address.num    || '';
+                    document.getElementById('p-bairro').value = fullUserData.address.bairro || '';
+                    document.getElementById('p-comp').value   = fullUserData.address.comp   || '';
+                    if (!savedCity && fullUserData.address.cidade) savedCity = fullUserData.address.cidade;
+                }
+                loadCities(savedCity);
+            } else {
+                loadCities('');
             }
-        };
+        } catch(e) {
+            console.error("Erro ao buscar dados do perfil:", e);
+            loadCities('');
+        }
 
         // Função para salvar o endereço no Supabase
         window.saveAddress = async () => {
@@ -327,17 +326,14 @@
             btn.disabled = true;
 
             try {
-                let dataToUpdate = {
-                    name: newName,
-                    phone: newPhone,
-                    email: newEmail
-                };
-                
-                if (newPass !== '') {
-                    dataToUpdate.password = newPass; 
-                }
-
+                const dataToUpdate = { name: newName, phone: newPhone, email: newEmail };
                 await supabase.from('customers').update(dataToUpdate).eq('id', userDocId);
+
+                // Atualiza senha via Supabase Auth (nunca salva no banco)
+                if (newPass !== '') {
+                    const { error: passErr } = await supabase.auth.updateUser({ password: newPass });
+                    if (passErr) { alert('Erro ao atualizar senha: ' + passErr.message); }
+                }
 
                 let storedCust = JSON.parse(localStorage.getItem('loggedCustomer')) || {};
                 storedCust.name = newName;
@@ -397,12 +393,14 @@
             }
         };
 
-        window.logout = () => {
+        window.logout = async () => {
             if (confirm("Deseja realmente sair da sua conta?")) {
+                await supabase.auth.signOut();
                 localStorage.removeItem('loggedCustomer');
                 localStorage.removeItem('isLogged');
                 localStorage.removeItem('userName');
                 localStorage.removeItem('userEmail');
+                localStorage.removeItem('userCity');
                 window.location.href = 'index.html';
             }
         };
