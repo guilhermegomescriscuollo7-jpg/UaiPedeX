@@ -1,4 +1,5 @@
 // supabase/functions/place-order/index.ts
+// NOTE: This project uses camelCase columns (storeId, isActive, deliveryFee, orderType, etc.)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -49,26 +50,27 @@ serve(async (req) => {
         });
     }
 
-    // Fetch store data — real delivery fee from DB
+    // Fetch store — real delivery fee from DB (camelCase columns)
     const { data: store } = await supabaseAdmin
         .from("stores")
-        .select("id, name, deliveryFee, minOrder, active, pixKey, auth_id")
+        .select("id, name, deliveryFee, minOrder, isActive, status, pixKey, auth_id")
         .eq("id", store_id)
         .single();
 
-    if (!store || !store.active) {
+    if (!store || store.isActive === false) {
         return new Response(JSON.stringify({ error: "Loja indisponível" }), {
             status: 400, headers: { ...cors, "Content-Type": "application/json" }
         });
     }
 
     // Fetch product prices from DB — NEVER trust prices from client
+    // Products table uses camelCase: storeId (text), isActive (boolean), price (text)
     const productIds = items.map((i: any) => i.product_id);
     const { data: products } = await supabaseAdmin
         .from("products")
-        .select("id, name, price, active")
+        .select("id, name, price, isActive")
         .in("id", productIds)
-        .eq("store_id", store_id);
+        .eq("storeId", store_id);
 
     if (!products || products.length !== productIds.length) {
         return new Response(JSON.stringify({ error: "Um ou mais produtos não encontrados" }), {
@@ -76,22 +78,25 @@ serve(async (req) => {
         });
     }
 
-    // Calculate subtotal with real prices from DB
+    // Calculate subtotal — price is stored as text, parse to float
     let subtotal = 0;
     const orderItems = [];
     for (const item of items) {
         const product = products.find((p: any) => p.id === item.product_id);
-        if (!product || !product.active) {
+        if (!product || product.isActive === false) {
             return new Response(JSON.stringify({ error: `Produto ${item.product_id} indisponível` }), {
                 status: 400, headers: { ...cors, "Content-Type": "application/json" }
             });
         }
         const qty = Math.max(1, Math.floor(Number(item.qty)));
-        subtotal += product.price * qty;
-        orderItems.push({ product_id: product.id, name: product.name, price: product.price, qty, lineTotal: product.price * qty });
+        const price = parseFloat(String(product.price)) || 0;
+        subtotal += price * qty;
+        orderItems.push({ product_id: product.id, name: product.name, price, qty, lineTotal: price * qty });
     }
 
-    const deliveryFee = delivery_method === "retirada" ? 0 : Number(store.deliveryFee || 0);
+    const deliveryFee = delivery_method === "retirada"
+        ? 0
+        : parseFloat(String(store.deliveryFee || "0")) || 0;
 
     // Validate coupon atomically via PL/pgSQL function
     let discountAmount = 0;
@@ -121,27 +126,30 @@ serve(async (req) => {
         .eq("auth_id", user.id)
         .single();
 
-    // Insert order with service_role (bypasses RLS)
+    // Insert order with service_role (bypasses RLS), using camelCase column names
     const { data: order, error: orderErr } = await supabaseAdmin
         .from("orders")
         .insert([{
-            store_id,
-            customer_id: customer?.id,
+            storeId: store_id,
             customer_auth_id: user.id,
             store_auth_id: store.auth_id,
             items: orderItems,
             subtotal,
-            deliveryFee: deliveryFee,
+            deliveryFee,
             discount: discountAmount,
-            coupon_id: couponId,
             total,
             orderType: delivery_method || "entrega",
             address,
             status: "Pendente",
             customerName: customer?.name || user.email,
-            customerPhone: customer?.phone || "",
             timestamp: Date.now(),
             date: new Date().toLocaleString('pt-BR'),
+            customer: {
+                id: customer?.id,
+                name: customer?.name || user.email,
+                phone: customer?.phone || "",
+                address
+            }
         }])
         .select()
         .single();
@@ -153,7 +161,8 @@ serve(async (req) => {
         });
     }
 
-    return new Response(JSON.stringify({ success: true, order_id: order.id, total, items: orderItems }), {
-        status: 200, headers: { ...cors, "Content-Type": "application/json" }
-    });
+    return new Response(
+        JSON.stringify({ success: true, order_id: order.id, total, items: orderItems }),
+        { status: 200, headers: { ...cors, "Content-Type": "application/json" } }
+    );
 });

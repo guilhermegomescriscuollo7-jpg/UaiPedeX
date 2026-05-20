@@ -22,11 +22,12 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find available drivers (any city for now — filter by city if drivers table has city field)
+    // Find online drivers with OneSignal player_id (isOnline = production schema column)
     const { data: drivers } = await supabaseAdmin
         .from("drivers")
-        .select("onesignal_player_id")
-        .eq("available", true)
+        .select("onesignal_player_id, city")
+        .eq("isOnline", true)
+        .eq("isActive", true)
         .not("onesignal_player_id", "is", null);
 
     const playerIds = (drivers ?? [])
