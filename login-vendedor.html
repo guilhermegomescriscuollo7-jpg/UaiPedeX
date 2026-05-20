@@ -57,79 +57,67 @@
     </div>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabase } from './js/supabase-client.js';
+    import { saveStoreSession } from './js/auth.js';
 
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data: { session: existingSession } } = await supabase.auth.getSession();
+    if (existingSession && existingSession.user.app_metadata?.role === 'store') {
+        window.location.href = 'vendedor.html';
+    }
 
-        if (localStorage.getItem('loggedStore')) {
-            window.location.href = "vendedor.html";
-        }
+    const form     = document.getElementById('login-form');
+    const btnLogin = document.getElementById('btn-login');
 
-        const form = document.getElementById('login-form');
-        const btnLogin = document.getElementById('btn-login');
+    function showAlert(msg, type) {
+        const alertBox = document.getElementById('alert-msg');
+        if (!alertBox) return;
+        alertBox.innerText = msg;
+        alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
+        alertBox.style.display = 'block';
+    }
 
-        function showAlert(msg, type) {
-            const alertBox = document.getElementById('alert-msg');
-            alertBox.innerText = msg;
-            alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
-            alertBox.style.display = 'block';
-        }
-
+    if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const email = document.getElementById('email').value.trim();
-            const pass = document.getElementById('pass').value.trim();
+            const email = document.getElementById('email')?.value?.trim();
+            const pass  = document.getElementById('pass')?.value?.trim();
+            if (!email || !pass) { showAlert('❌ Preencha todos os campos.', 'error'); return; }
 
-            if (!email || !pass) {
-                showAlert("❌ Preencha todos os campos.", "error");
+            btnLogin.disabled  = true;
+            btnLogin.innerText = 'Autenticando...';
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+
+            if (error || data.user.app_metadata?.role !== 'store') {
+                showAlert('❌ E-mail ou senha incorretos.', 'error');
+                btnLogin.disabled  = false;
+                btnLogin.innerText = 'Entrar no Painel';
                 return;
             }
 
-            btnLogin.disabled = true;
-            btnLogin.innerText = "Autenticando...";
-
-            try {
-                // Consulta a loja no Supabase
-                const { data, error } = await supabase
-                    .from('stores')
-                    .select('*')
-                    .eq('email', email)
-                    .eq('password', pass);
-
-                if (error || !data || data.length === 0) {
-                    showAlert("❌ E-mail ou senha incorretos.", "error");
-                    btnLogin.disabled = false;
-                    btnLogin.innerText = "Entrar no Painel";
-                    return;
-                }
-
-                let storeData = data[0];
-
-                if (storeData.isActive === false) {
-                    showAlert("⚠️ Sua loja foi suspensa. Entre em contato com a administração.", "error");
-                    btnLogin.disabled = false;
-                    btnLogin.innerText = "Entrar no Painel";
-                    return;
-                }
-
-                localStorage.setItem('loggedStore', JSON.stringify(storeData));
-                
-                showAlert("✅ Login efetuado! Redirecionando...", "success");
-                
-                setTimeout(() => {
-                    window.location.href = "vendedor.html";
-                }, 800); 
-
-            } catch (error) {
-                console.error("Erro no login:", error);
-                showAlert("❌ Erro de conexão com o servidor.", "error");
-                btnLogin.disabled = false;
-                btnLogin.innerText = "Entrar no Painel";
+            if (data.user.app_metadata?.must_reset_password) {
+                window.location.href = 'reset-password.html'; return;
             }
+
+            const { data: profile } = await supabase
+                .from('stores')
+                .select('id, name, city, pixKey, dueDate, isActive')
+                .eq('auth_id', data.user.id)
+                .single();
+
+            if (!profile || profile.isActive === false) {
+                await supabase.auth.signOut();
+                showAlert('⚠️ Loja suspensa. Entre em contato com a administração.', 'error');
+                btnLogin.disabled  = false;
+                btnLogin.innerText = 'Entrar no Painel';
+                return;
+            }
+
+            saveStoreSession(data.user, profile);
+            showAlert('✅ Login efetuado! Redirecionando...', 'success');
+            setTimeout(() => { window.location.href = 'vendedor.html'; }, 800);
         });
-    </script>
+    }
+</script>
 </body>
 </html>
