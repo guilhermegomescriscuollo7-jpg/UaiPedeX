@@ -110,20 +110,25 @@
     </div>
 
     <script type="module">
-        // Importação do Supabase
         import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        // Chaves do seu projeto UaiPede no Supabase
         const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
         const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const errorMsg = document.getElementById('error-message');
 
-        // Verifica se o administrador já está logado ao carregar a página
-        window.onload = () => {
-            if(sessionStorage.getItem('adminAuth') === 'true') {
+        // QUEBRA DE LOOP: Verifica as DUAS sessões. Se uma falhar, ele limpa tudo e fica na página.
+        window.onload = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            const localAuth = sessionStorage.getItem('adminAuth');
+            
+            if(session && localAuth === 'true') {
                 window.location.href = 'adm.html';
+            } else {
+                // Força a limpeza para quebrar qualquer loop infinito
+                await supabase.auth.signOut();
+                sessionStorage.removeItem('adminAuth');
             }
         };
 
@@ -140,30 +145,28 @@
             
             if(!email || !pass) return showError("Por favor, preencha todos os campos.");
 
-            btn.innerText = "Verificando...";
+            btn.innerText = "Autenticando...";
             errorMsg.style.display = 'none';
 
             try {
-                // Consulta a tabela 'admins' no Supabase usando as colunas que criou
-                const { data, error } = await supabase
-                    .from('admins')
-                    .select('*')
-                    .eq('email', email)
-                    .eq('password', pass);
+                // Autenticação OFICIAL do Supabase Auth
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: pass,
+                });
 
-                if (error) throw error;
+                if (error) {
+                    throw error;
+                }
 
-                if (data && data.length > 0) {
-                    // Credenciais corretas: define a chave de sessão e redireciona
+                if (data.session) {
+                    // Salva nas duas para garantir estabilidade e ir para o painel
                     sessionStorage.setItem('adminAuth', 'true');
                     window.location.href = 'adm.html';
-                } else {
-                    // Credenciais não encontradas na tabela admins
-                    showError("Erro: E-mail ou palavra-passe incorretos.");
                 }
             } catch (error) {
-                console.error("Erro na autenticação:", error);
-                showError("Erro técnico ao ligar à base de dados.");
+                console.error("Erro na autenticação:", error.message);
+                showError("Erro: E-mail ou palavra-passe incorretos.");
             }
         });
     </script>
