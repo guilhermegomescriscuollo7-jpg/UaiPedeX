@@ -478,33 +478,43 @@ window.saveStore = async (event) => {
     if(!name || !email || !pass || !cityDropdownVal) return alert("Preencha dados da loja, incluindo a cidade."); 
     const dueDateTimestamp = dueDateVal ? new Date(dueDateVal + 'T12:00:00').getTime() : null;
 
-    const storeData = { name, email, password: pass, cat, doc: docId, cep, street, city: cityDropdownVal, dueDate: dueDateTimestamp, isFeatured };
+    // Sem campo password — autenticação gerenciada pelo Supabase Auth
+    const storeData = { name, email, cat, doc: docId, cep, street, city: cityDropdownVal, dueDate: dueDateTimestamp, isFeatured };
 
-    if (editingStoreId) { 
-        if(allStores.find(s => s.email === email && s.id !== editingStoreId)) return alert("Já existe loja com este e-mail."); 
-        if (storeImgBase64) storeData.logo = storeImgBase64; 
-        
-        const { data, error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId).select(); 
-        
-        if (error) { 
-            alert("ERRO NO BANCO DE DADOS:\n" + error.message); 
-            console.error(error); 
-            return; 
+    if (editingStoreId) {
+        if(allStores.find(s => s.email === email && s.id !== editingStoreId)) return alert("Já existe loja com este e-mail.");
+        if (storeImgBase64) storeData.logo = storeImgBase64;
+
+        const { data, error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId).select();
+
+        if (error) {
+            alert("ERRO NO BANCO DE DADOS:\n" + error.message);
+            console.error(error);
+            return;
         }
-        
+
         if (!data || data.length === 0) {
             alert("ATENÇÃO: Os dados não foram salvos.\n\nMotivo: A tabela 'stores' no Supabase está com a segurança RLS ativa, mas falta criar uma política (Policy) que permita a operação de 'UPDATE' para usuários públicos/anon.");
             return;
         }
-        
-        alert("Loja atualizada com sucesso!"); 
-    } else { 
-        if(allStores.find(s => s.email === email)) return alert("Já existe loja com este e-mail."); 
+
+        alert("Loja atualizada com sucesso!");
+    } else {
+        if(allStores.find(s => s.email === email)) return alert("Já existe loja com este e-mail.");
+
+        // Criar usuário no Supabase Auth antes de inserir o perfil
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email, password: pass,
+            options: { data: { name, role_intent: 'store' } }
+        });
+        if (authError) { alert("Erro ao criar usuário Auth:\n" + authError.message); return; }
+
+        storeData.auth_id = authData.user.id;
         storeData.status = 'Aberto'; storeData.isActive = true; storeData.logo = storeImgBase64 || 'https://via.placeholder.com/60';
-        
-        const { error } = await supabase.from('stores').insert([storeData]); 
+
+        const { error } = await supabase.from('stores').insert([storeData]);
         if (error) { alert("ERRO NO BANCO DE DADOS:\n" + error.message); console.error(error); return; }
-        alert("Loja registada!"); 
+        alert("Loja registada! O lojista precisará redefinir a senha no primeiro acesso.");
     } 
     window.cancelEdit(); fetchStores();
 };
