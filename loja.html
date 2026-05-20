@@ -293,20 +293,11 @@
     <div id="toast-container"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        // As credenciais oficiais do Firebase do Dores Delivery / UaiPede
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
         let currentStoreProducts = []; let activeProduct = null; let activeStore = {};
         let prodQty = 1; let basePriceCalc = 0; let storeCoupons = [];
@@ -317,7 +308,6 @@
 
         if (!storeIdParam) { window.location.href = 'index.html'; }
 
-        // Nova função para criar os Toasts (Notificações)
         window.showToast = (msg, type = '') => {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -328,7 +318,6 @@
             setTimeout(() => { toast.remove(); }, 3000);
         };
 
-        // Nova função para partilhar a loja
         window.shareStore = () => {
             if (!activeStore || !activeStore.name) return;
             
@@ -337,14 +326,12 @@
             const shareText = `Olha o cardápio de ${activeStore.name} no UaiPede! Fica a dica:`;
 
             if (navigator.share) {
-                // Se for telemóvel moderno, abre a gaveta nativa de partilha (WhatsApp, etc)
                 navigator.share({
                     title: shareTitle,
                     text: shareText,
                     url: shareUrl
                 }).catch(err => console.log('Erro ao partilhar', err));
             } else {
-                // Fallback para PC ou navegadores antigos (abre direto o WhatsApp)
                 const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
                 window.open(whatsappUrl, '_blank');
             }
@@ -352,15 +339,14 @@
 
         const loadStoreData = async () => {
             try {
-                const storeRef = doc(db, "stores", storeIdParam);
-                const storeSnap = await getDoc(storeRef);
+                const { data: storeSnap, error: storeError } = await supabase.from('stores').select('*').eq('id', storeIdParam).single();
                 
-                if (!storeSnap.exists()) {
+                if (storeError || !storeSnap) {
                     document.getElementById('store-page-content').innerHTML = '<div style="padding: 40px; text-align: center; color: #ea1d2c; font-weight:bold;">Loja não encontrada.</div>';
                     return;
                 }
 
-                const s = storeSnap.data();
+                const s = storeSnap;
 
                 let dynamicStatus = s.status || 'Aberto';
                 if (dynamicStatus === 'Aberto' && s.schedule) {
@@ -386,36 +372,35 @@
                 const userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
                 
                 if (userEmail) {
-                    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
-                    const userSnap = await getDocs(userQ);
-                    if (!userSnap.empty) {
-                        isSponsorAssociated = userSnap.docs[0].data().isSicoob === true;
+                    const { data: userSnap } = await supabase.from('customers').select('*').eq('email', userEmail);
+                    if (userSnap && userSnap.length > 0) {
+                        isSponsorAssociated = userSnap[0].isSicoob === true;
                     }
                 }
 
-                const qCoupons = query(collection(db, "coupons"), where("storeId", "==", storeIdParam), where("active", "==", true));
-                const snapCoupons = await getDocs(qCoupons);
-                snapCoupons.forEach(docC => {
-                    const c = docC.data();
-                    if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) { storeCoupons.push(c); }
-                });
-
-                if (s.city) {
-                    const qGlobalCoupons = query(collection(db, "coupons"), where("storeId", "==", "GLOBAL"), where("targetCity", "==", s.city), where("active", "==", true));
-                    const snapGlobalCoupons = await getDocs(qGlobalCoupons);
-                    snapGlobalCoupons.forEach(docC => {
-                        const c = docC.data();
-                        const isSicoobCoupon = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
-                        if (isSicoobCoupon && !isSponsorAssociated) return; 
+                const { data: snapCoupons } = await supabase.from('coupons').select('*').eq('storeId', storeIdParam).eq('active', true);
+                if(snapCoupons) {
+                    snapCoupons.forEach(c => {
                         if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) { storeCoupons.push(c); }
                     });
                 }
 
-                onSnapshot(query(collection(db, "products"), where("storeId", "==", storeIdParam)), (snapshot) => {
-                    currentStoreProducts = []; 
-                    snapshot.forEach(docP => currentStoreProducts.push({ id: docP.id, ...docP.data() }));
+                if (s.city) {
+                    const { data: snapGlobalCoupons } = await supabase.from('coupons').select('*').eq('storeId', 'GLOBAL').eq('targetCity', s.city).eq('active', true);
+                    if(snapGlobalCoupons) {
+                        snapGlobalCoupons.forEach(c => {
+                            const isSicoobCoupon = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
+                            if (isSicoobCoupon && !isSponsorAssociated) return; 
+                            if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) { storeCoupons.push(c); }
+                        });
+                    }
+                }
+
+                const { data: productsData } = await supabase.from('products').select('*').eq('storeId', storeIdParam);
+                if (productsData) {
+                    currentStoreProducts = productsData;
                     renderFullStore(s, dynamicStatus);
-                });
+                }
 
             } catch (error) { console.error("Erro ao carregar loja:", error); }
         };
@@ -461,7 +446,6 @@
             
             let productsHTML = '';
             
-            // 🟢 APLICAÇÃO DA ORDENAÇÃO PELO CAMPO 'ORDER' DO PAINEL DO VENDEDOR 🟢
             const availableProducts = currentStoreProducts
                 .filter(p => p.isActive !== false)
                 .sort((a, b) => {
@@ -474,15 +458,11 @@
                 productsHTML = `<div style="background: #fff; padding: 40px 20px; text-align: center; color: #717171; height: 100vh;">O cardápio está vazio neste momento.</div>`; 
             } else {
                 
-                // 🟢 APLICAÇÃO DA ORDENAÇÃO DE CATEGORIAS SALVA NO PAINEL DO VENDEDOR 🟢
                 let productCategories = availableProducts.map(p => p.category || 'Destaques');
                 let myCategories = storeData.categories || [];
                 let orphanCats = productCategories.filter(c => !myCategories.includes(c) && c !== 'Destaques');
                 
-                // Cria a lista ordenada de categorias: 'Destaques' primeiro, depois a ordem salva no painel, depois as órfãs
                 let orderedCategories = ['Destaques', ...myCategories.filter(c => c !== 'Destaques'), ...new Set(orphanCats)];
-                
-                // Filtra apenas as categorias que possuem pelo menos um produto ativo na loja
                 let categories = orderedCategories.filter(cat => availableProducts.some(p => (p.category || 'Destaques') === cat));
                 
                 let filtersHTML = `<div class="store-menu-filters" id="store-menu-filters"><button class="store-cat-btn active" onclick="window.filterStoreMenu('Todas', this)">Todas</button>${categories.map(c => `<button class="store-cat-btn" onclick="window.filterStoreMenu('${c}', this)">${c}</button>`).join('')}</div>`;
