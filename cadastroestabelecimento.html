@@ -142,6 +142,10 @@
                         <input type="email" id="cad-email" placeholder="empresa@email.com" required>
                     </div>
                     <div class="form-group">
+                        <label>Senha de Acesso</label>
+                        <input type="password" id="cad-senha" placeholder="Mínimo 8 caracteres" minlength="8" required>
+                    </div>
+                    <div class="form-group">
                         <label>Prazo Médio Delivery (Minutos)</label>
                         <input type="number" id="cad-prazo" placeholder="Ex: 40" required>
                     </div>
@@ -177,57 +181,102 @@
     <script type="module">
     import { supabase } from './js/supabase-client.js';
 
-    // Load cities
-    const citySelect = document.getElementById('select-cidade') || document.getElementById('storeCity') || document.getElementById('regCity');
+    // --- Load cities into <select> ---
+    const citySelect  = document.getElementById('select-cidade');
     const loadingText = document.getElementById('loading-cities');
+
     if (citySelect) {
-        const { data: cities } = await supabase.from('cities').select('*');
-        if (cities) {
+        const { data: cities, error: citiesError } = await supabase
+            .from('cities')
+            .select('*');
+
+        if (cities && !citiesError) {
             cities.sort((a, b) => a.name.localeCompare(b.name));
-            citySelect.innerHTML = '<option value="">Selecione a cidade...</option>' +
+            citySelect.innerHTML =
+                '<option value="">Selecione a cidade...</option>' +
                 cities.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
         }
         if (loadingText) loadingText.style.display = 'none';
     }
 
-    const form      = document.getElementById('form-cadastro') || document.getElementById('registerForm') || document.querySelector('form');
-    const btnSubmit = document.getElementById('btn-submit') || document.getElementById('btnSubmit');
+    // --- Form submit ---
+    const form      = document.getElementById('form-cadastro');
+    const btnSubmit = document.getElementById('btn-submit');
 
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name  = document.getElementById('cad-nome')?.value?.trim();
-            const email = document.getElementById('cad-email')?.value?.trim();
-            const phone = document.getElementById('cad-whatsapp')?.value?.trim() || '';
-            const doc   = document.getElementById('cad-cnpj')?.value?.trim()     || '';
-            const city  = citySelect?.value || '';
 
-            if (!name || !email) {
+            const name     = document.getElementById('cad-nome')?.value?.trim()       || '';
+            const email    = document.getElementById('cad-email')?.value?.trim()      || '';
+            const password = document.getElementById('cad-senha')?.value              || '';
+            const phone    = document.getElementById('cad-whatsapp')?.value?.trim()   || '';
+            const doc      = document.getElementById('cad-cnpj')?.value?.trim()       || '';
+            const city     = citySelect?.value                                         || '';
+
+            if (!name || !email || !password) {
                 alert('Preencha todos os campos obrigatórios.');
                 return;
             }
 
-            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.innerText = 'A Enviar...'; }
+            if (btnSubmit) {
+                btnSubmit.disabled  = true;
+                btnSubmit.innerText = 'A Enviar...';
+            }
 
-            await supabase.from('stores').insert([{
-                name, email, phone, doc, city,
-                segmento:     document.getElementById('cad-segmento')?.value || '',
-                razaoSocial:  document.getElementById('cad-razao')?.value    || '',
-                responsavel:  document.getElementById('cad-responsavel')?.value || '',
-                ruaNumero:    document.getElementById('cad-rua')?.value       || '',
-                bairro:       document.getElementById('cad-bairro')?.value    || '',
-                complemento:  document.getElementById('cad-complemento')?.value || '',
-                prazoDelivery: document.getElementById('cad-prazo')?.value    || '',
-                taxaEntrega:  document.getElementById('cad-taxa')?.value      || '',
-                obs:          document.getElementById('cad-obs')?.value       || '',
-                isActive: false,
-                status: 'pendente',
-                createdAt: new Date().toISOString()
+            // 1. Create auth user
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { name } }
+            });
+
+            if (authError) {
+                alert('Erro ao criar conta: ' + authError.message);
+                if (btnSubmit) {
+                    btnSubmit.disabled  = false;
+                    btnSubmit.innerText = 'Enviar Pedido de Registo';
+                }
+                return;
+            }
+
+            // 2. Insert store record linked to the new auth user
+            const { error: storeError } = await supabase.from('stores').insert([{
+                auth_id:       authData.user.id,
+                name,
+                email,
+                phone,
+                doc,
+                city,
+                segmento:      document.getElementById('cad-segmento')?.value     || '',
+                razaoSocial:   document.getElementById('cad-razao')?.value        || '',
+                responsavel:   document.getElementById('cad-responsavel')?.value  || '',
+                ruaNumero:     document.getElementById('cad-rua')?.value          || '',
+                bairro:        document.getElementById('cad-bairro')?.value       || '',
+                complemento:   document.getElementById('cad-complemento')?.value  || '',
+                prazoDelivery: document.getElementById('cad-prazo')?.value        || '',
+                taxaEntrega:   document.getElementById('cad-taxa')?.value         || '',
+                obs:           document.getElementById('cad-obs')?.value          || '',
+                isActive:      false,
+                status:        'pendente',
+                createdAt:     new Date().toISOString()
             }]);
 
-            alert('Cadastro enviado! Aguarde aprovação do administrador.');
+            if (storeError) {
+                alert('Conta criada, mas erro ao guardar dados: ' + storeError.message);
+                if (btnSubmit) {
+                    btnSubmit.disabled  = false;
+                    btnSubmit.innerText = 'Enviar Pedido de Registo';
+                }
+                return;
+            }
+
+            alert('Cadastro enviado com sucesso! Aguarde a aprovação do administrador.');
             form.reset();
-            if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerText = 'Enviar Pedido de Registo'; }
+            if (btnSubmit) {
+                btnSubmit.disabled  = false;
+                btnSubmit.innerText = 'Enviar Pedido de Registo';
+            }
         });
     }
 </script>
