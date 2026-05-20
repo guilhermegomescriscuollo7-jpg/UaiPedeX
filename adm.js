@@ -883,3 +883,100 @@ function renderAlerts() {
             <button onclick="window.deleteAlert('${a.id}')" style="background:#fef0f0; border:1px solid #fbd5d5; padding: 10px; border-radius: 8px; color:#ea1d2c; cursor:pointer;">🗑️</button>
         </div>`}).join('');
 }
+
+// ==========================================
+// NOTIFICAÇÕES PUSH — ONESIGNAL
+// ==========================================
+
+// Preview em tempo real
+document.addEventListener('DOMContentLoaded', () => {
+    const titleInput = document.getElementById('push-title');
+    const bodyInput  = document.getElementById('push-body');
+    const imageInput = document.getElementById('push-image');
+    const bodyCount  = document.getElementById('push-body-count');
+
+    if (!titleInput) return;
+
+    titleInput.addEventListener('input', () => {
+        document.getElementById('preview-title').textContent = titleInput.value || 'Título da notificação';
+    });
+    bodyInput.addEventListener('input', () => {
+        document.getElementById('preview-body').textContent = bodyInput.value || 'Sua mensagem aparece aqui...';
+        bodyCount.textContent = `${bodyInput.value.length}/250`;
+    });
+    imageInput.addEventListener('input', () => {
+        const wrap = document.getElementById('preview-image-wrap');
+        const img  = document.getElementById('preview-image');
+        if (imageInput.value) {
+            img.src = imageInput.value;
+            wrap.style.display = 'block';
+        } else {
+            wrap.style.display = 'none';
+        }
+    });
+});
+
+window.sendPushNotification = async () => {
+    const title    = document.getElementById('push-title').value.trim();
+    const body     = document.getElementById('push-body').value.trim();
+    const audience = document.getElementById('push-audience').value;
+    const url      = document.getElementById('push-url').value.trim();
+    const image    = document.getElementById('push-image').value.trim();
+    const btn      = document.getElementById('push-send-btn');
+    const feedback = document.getElementById('push-feedback');
+
+    if (!title || !body) {
+        feedback.style.display = 'block';
+        feedback.style.background = '#fef0f0';
+        feedback.style.color = '#ea1d2c';
+        feedback.style.border = '1px solid #fbd5d5';
+        feedback.textContent = '⚠️ Preencha o título e a mensagem.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    feedback.style.display = 'none';
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sessão expirada. Faça login novamente.');
+
+        const payload = { title, body, audience };
+        if (url)   payload.url   = url;
+        if (image) payload.image = image;
+
+        const { data, error } = await supabase.functions.invoke('send-notification', {
+            body: payload,
+            headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+
+        if (error) throw new Error(error.message || 'Erro ao enviar notificação');
+
+        feedback.style.display = 'block';
+        feedback.style.background = '#f0fdf4';
+        feedback.style.color = '#16a34a';
+        feedback.style.border = '1px solid #bbf7d0';
+        feedback.textContent = `✅ Notificação enviada! ${data?.recipients ? `(${data.recipients} dispositivos)` : ''}`;
+
+        // Limpa os campos
+        document.getElementById('push-title').value = '';
+        document.getElementById('push-body').value  = '';
+        document.getElementById('push-url').value   = '';
+        document.getElementById('push-image').value = '';
+        document.getElementById('preview-title').textContent = 'Título da notificação';
+        document.getElementById('preview-body').textContent  = 'Sua mensagem aparece aqui...';
+        document.getElementById('preview-image-wrap').style.display = 'none';
+        document.getElementById('push-body-count').textContent = '0/250';
+
+    } catch (err) {
+        feedback.style.display = 'block';
+        feedback.style.background = '#fef0f0';
+        feedback.style.color = '#ea1d2c';
+        feedback.style.border = '1px solid #fbd5d5';
+        feedback.textContent = `❌ ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg> Enviar Notificação`;
+    }
+};

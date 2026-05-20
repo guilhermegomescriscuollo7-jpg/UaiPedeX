@@ -254,6 +254,10 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                     Som de Notificação
                 </li>
+                <li class="nav-item" onclick="window.switchTab('notificacoes', this)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                    Notificações Push
+                </li>
                 <li class="nav-item" onclick="window.open('email.html', '_blank')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                     Solicitações
@@ -558,6 +562,70 @@
                     <h3 style="margin-top:40px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; font-size: 1.1rem; color: #111;">Áudio Atual</h3>
                     <div id="current-audio-container" style="margin-top: 15px;">
                         <p style="color:#999; font-size:0.9rem;">A carregar...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="notificacoes" class="section">
+                <h2>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ea1d2c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                    Enviar Notificação Push
+                </h2>
+                <div style="display:flex; gap:30px; flex-wrap:wrap; align-items:flex-start;">
+                    <!-- Formulário -->
+                    <div style="background:#fff; padding:30px; border-radius:16px; border:1px solid #eee; flex:1; min-width:320px; max-width:560px;">
+                        <div class="form-group">
+                            <label>Público-alvo</label>
+                            <select id="push-audience" style="width:100%; padding:14px; border:1.5px solid #eee; border-radius:10px; font-size:1rem; color:#111; background:#fafafa;">
+                                <option value="all">👥 Todos (clientes + entregadores)</option>
+                                <option value="customer">🛍️ Somente Clientes</option>
+                                <option value="driver">🛵 Somente Entregadores</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Título da Notificação *</label>
+                            <input type="text" id="push-title" placeholder="Ex: Promoção especial hoje! 🎉" maxlength="100" style="width:100%; padding:14px; border:1.5px solid #eee; border-radius:10px; font-size:1rem;">
+                        </div>
+                        <div class="form-group">
+                            <label>Mensagem *</label>
+                            <textarea id="push-body" placeholder="Ex: Ganhe 15% de desconto usando o cupom PROMO15 até meia-noite!" maxlength="250" rows="3" style="width:100%; padding:14px; border:1.5px solid #eee; border-radius:10px; font-size:1rem; resize:vertical;"></textarea>
+                            <span id="push-body-count" style="float:right; font-size:0.8rem; color:#aaa;">0/250</span>
+                        </div>
+                        <div class="form-group">
+                            <label>URL ao clicar <span style="color:#aaa; font-weight:400;">(opcional)</span></label>
+                            <input type="url" id="push-url" placeholder="https://uaipede.com.br/loja.html?id=..." style="width:100%; padding:14px; border:1.5px solid #eee; border-radius:10px; font-size:1rem;">
+                        </div>
+                        <div class="form-group">
+                            <label>URL da Imagem <span style="color:#aaa; font-weight:400;">(opcional — exibida abaixo da mensagem no Android)</span></label>
+                            <input type="url" id="push-image" placeholder="https://..." style="width:100%; padding:14px; border:1.5px solid #eee; border-radius:10px; font-size:1rem;">
+                        </div>
+                        <div id="push-feedback" style="display:none; padding:14px; border-radius:10px; margin-bottom:16px; font-weight:600; font-size:0.95rem;"></div>
+                        <button class="btn" id="push-send-btn" onclick="window.sendPushNotification()" style="width:100%; justify-content:center; gap:10px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            Enviar Notificação
+                        </button>
+                    </div>
+
+                    <!-- Preview -->
+                    <div style="flex:0 0 280px;">
+                        <p style="font-size:0.85rem; color:#aaa; margin-bottom:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Preview Android</p>
+                        <div style="background:#1c1c1e; border-radius:20px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
+                            <div style="background:#2c2c2e; border-radius:12px; padding:14px;">
+                                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                                    <div style="width:20px; height:20px; background:#ea1d2c; border-radius:4px; flex-shrink:0;"></div>
+                                    <span style="color:#fff; font-size:0.75rem; font-weight:600;">UAIPEDE</span>
+                                    <span style="color:#777; font-size:0.7rem; margin-left:auto;">agora</span>
+                                </div>
+                                <div id="preview-title" style="color:#fff; font-size:0.9rem; font-weight:700; margin-bottom:4px;">Título da notificação</div>
+                                <div id="preview-body" style="color:#aaa; font-size:0.82rem; line-height:1.4;">Sua mensagem aparece aqui...</div>
+                                <div id="preview-image-wrap" style="display:none; margin-top:10px;">
+                                    <img id="preview-image" src="" alt="" style="width:100%; border-radius:8px; max-height:120px; object-fit:cover;">
+                                </div>
+                            </div>
+                        </div>
+                        <p style="font-size:0.8rem; color:#bbb; margin-top:16px; line-height:1.5;">
+                            <strong style="color:#111;">Dica:</strong> Títulos com emoji chamam muito mais atenção. Mantenha a mensagem abaixo de 100 caracteres para não ser cortada.
+                        </p>
                     </div>
                 </div>
             </section>
