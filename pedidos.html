@@ -230,46 +230,39 @@
 
     <script type="module">
         import { supabase } from './js/supabase-client.js';
-        import { requireRole } from './js/auth.js';
+        import { requireAuth } from './js/auth.js';
 
-        const session = await requireRole('customer', 'login.html');
+        const session = await requireAuth('login.html');
         if (!session) throw new Error('Not authenticated');
 
-        const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
-        const isLogged = true;
-        const userEmail = loggedCustomer ? loggedCustomer.email : session.user.email;
+        const userEmail = session.user.email;
 
         let globalOrders = [];
         let currentChatOrderId = null;
         let activeOrderForDetails = null;
         let ordersPollInterval = null;
         let chatPollInterval = null;
-        
         let processedMsgIds = new Set();
 
-        window.onload = () => {
-            if (!isLogged || !userEmail) {
-                document.getElementById('unlogged-state').style.display = 'block';
-                return;
-            }
+        // Busca pedidos por customer_auth_id (coluna adicionada na migração de segurança)
+        // Fallback: busca pelo email no campo JSONB customer para pedidos antigos
+        const fetchOrders = async () => {
+            const { data: ordersData, error } = await supabase
+                .from('orders')
+                .select('*')
+                .or(`customer_auth_id.eq.${session.user.id},customer->>email.eq.${userEmail}`)
+                .order('timestamp', { ascending: false });
 
-            // Polling para os pedidos e notificações de mensagens
-            const fetchOrders = async () => {
-                const { data: ordersData, error } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('customer->>email', userEmail);
-                
-                if (error) return;
+            if (error) { console.error('Erro ao buscar pedidos:', error); return; }
 
-                globalOrders = ordersData || [];
-                renderOrdersList();
-                checkNewMessages();
-            };
-
-            fetchOrders();
-            ordersPollInterval = setInterval(fetchOrders, 5000); // Atualiza a cada 5 segundos
+            globalOrders = ordersData || [];
+            renderOrdersList();
+            checkNewMessages();
         };
+
+        // Inicia direto — sem window.onload (evita race condition com top-level await)
+        fetchOrders();
+        ordersPollInterval = setInterval(fetchOrders, 5000);
 
         const renderOrdersList = () => {
             const container = document.getElementById('orders-container');

@@ -473,7 +473,8 @@
                                 <h3 class="menu-section-title">${cat}</h3>
                                 <div class="${containerClass}">
                                 ${prods.map((p, index) => {
-                                    let displayPrice = p.price > 0 ? `R$ ${p.price.toFixed(2)}` : (p.variants && p.variants.length > 0 ? `A partir de R$ ${p.variants[0].price.toFixed(2)}` : 'R$ 0,00');
+                                    const _price = Number(p.price) || 0;
+                    let displayPrice = _price > 0 ? `R$ ${_price.toFixed(2)}` : (p.variants && p.variants.length > 0 ? `A partir de R$ ${Number(p.variants[0].price).toFixed(2)}` : 'R$ 0,00');
                                     let badgeTop = (cat === 'Destaques' && index === 0) ? '<div class="badge-top">Mais pedido</div>' : '';
                                     
                                     if(isGrid) {
@@ -736,8 +737,8 @@
             prodQty = 1; document.getElementById('p-modal-qty').innerText = prodQty; document.getElementById('p-modal-obs').value = ''; window.updateObsCount();
             document.getElementById('p-modal-img').src = activeProduct.image || 'https://via.placeholder.com/600x400'; document.getElementById('p-modal-name').innerText = activeProduct.name; document.getElementById('p-modal-desc').innerText = activeProduct.desc || '';
             
-            if (activeProduct.unit === 'kg' && activeProduct.weight) { basePriceCalc = activeProduct.priceKg * activeProduct.weight; } 
-            else { basePriceCalc = activeProduct.price > 0 ? activeProduct.price : 0; }
+            if (activeProduct.unit === 'kg' && activeProduct.weight) { basePriceCalc = Number(activeProduct.priceKg) * Number(activeProduct.weight); }
+            else { basePriceCalc = Number(activeProduct.price) > 0 ? Number(activeProduct.price) : 0; }
             document.getElementById('p-modal-price').innerText = `R$ ${basePriceCalc.toFixed(2)}`;
 
             const varContainer = document.getElementById('p-modal-variants');

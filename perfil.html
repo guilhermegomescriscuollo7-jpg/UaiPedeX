@@ -168,9 +168,9 @@
 
     <script type="module">
         import { supabase } from './js/supabase-client.js';
-        import { requireRole } from './js/auth.js';
+        import { requireAuth } from './js/auth.js';
 
-        const session = await requireRole('customer', 'login.html');
+        const session = await requireAuth('login.html');
         if (!session) throw new Error('Not authenticated');
 
         const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
