@@ -278,20 +278,13 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, doc, getDoc, query, where, getDocs, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
         let cart = JSON.parse(localStorage.getItem('cart')) || [];
         let finalTotal = 0;
@@ -321,10 +314,9 @@
 
             if (userEmail) {
                 try {
-                    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
-                    const userSnap = await getDocs(userQ);
-                    if (!userSnap.empty) {
-                        const userData = userSnap.docs[0].data();
+                    const { data: userSnap } = await supabase.from("customers").select('*').eq("email", userEmail);
+                    if (userSnap && userSnap.length > 0) {
+                        const userData = userSnap[0];
                         
                         if (userData.address) {
                             if (typeof userData.address === 'object') {
@@ -363,9 +355,9 @@
 
             try {
                 const storeId = cart[0].storeId;
-                const storeSnap = await getDoc(doc(db, "stores", storeId));
-                if (storeSnap.exists()) {
-                    storeDataCache = storeSnap.data();
+                const { data: storeSnap } = await supabase.from("stores").select('*').eq('id', storeId).single();
+                if (storeSnap) {
+                    storeDataCache = storeSnap;
                     originalDeliveryFee = storeDataCache.deliveryFee || 0;
                     currentDeliveryFee = originalDeliveryFee;
 
@@ -446,41 +438,36 @@
             try {
                 let isSponsorAssociated = false;
                 if (userEmail) {
-                    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
-                    const userSnap = await getDocs(userQ);
-                    if (!userSnap.empty) {
-                        isSponsorAssociated = userSnap.docs[0].data().isSicoob === true;
+                    const { data: userSnap } = await supabase.from("customers").select('*').eq("email", userEmail);
+                    if (userSnap && userSnap.length > 0) {
+                        isSponsorAssociated = userSnap[0].isSicoob === true;
                     }
                 }
 
                 const storeCity = storeDataCache ? storeDataCache.city : null;
                 let availableCoupons = [];
 
-                const qLocal = query(collection(db, "coupons"), where("storeId", "==", storeId), where("active", "==", true));
-                const snapLocal = await getDocs(qLocal);
-                snapLocal.forEach(docC => {
-                    const c = docC.data();
-                    if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) {
-                        availableCoupons.push(c);
-                    }
-                });
-
-                if (storeCity) {
-                    const qGlobal = query(collection(db, "coupons"), where("storeId", "==", "GLOBAL"), where("targetCity", "==", storeCity), where("active", "==", true));
-                    const snapGlobal = await getDocs(qGlobal);
-                    snapGlobal.forEach(docC => {
-                        const c = docC.data();
-                        
-                        const isSicoobCoupon = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
-                        
-                        if (isSicoobCoupon && !isSponsorAssociated) {
-                            return; 
-                        }
-
+                const { data: snapLocal } = await supabase.from("coupons").select('*').eq("storeId", storeId).eq("active", true);
+                if (snapLocal) {
+                    snapLocal.forEach(c => {
                         if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) {
                             availableCoupons.push(c);
                         }
                     });
+                }
+
+                if (storeCity) {
+                    const { data: snapGlobal } = await supabase.from("coupons").select('*').eq("storeId", "GLOBAL").eq("targetCity", storeCity).eq("active", true);
+                    if (snapGlobal) {
+                        snapGlobal.forEach(c => {
+                            const isSicoobCoupon = (c.exclusiveFor === 'sicoob') || (c.sponsorName && c.sponsorName.toLowerCase().includes('sicoob'));
+                            if (isSicoobCoupon && !isSponsorAssociated) return; 
+
+                            if (!c.usageLimit || (c.usedCount || 0) < c.usageLimit) {
+                                availableCoupons.push(c);
+                            }
+                        });
+                    }
                 }
 
                 if (availableCoupons.length === 0) {
@@ -564,17 +551,15 @@
 
             try {
                 const storeId = cart[0].storeId;
-                const q = query(collection(db, "coupons"), where("code", "==", codeInput), where("active", "==", true));
-                const snap = await getDocs(q);
+                const { data: snap } = await supabase.from('coupons').select('*').eq('code', codeInput).eq('active', true);
 
-                if (snap.empty) {
+                if (!snap || snap.length === 0) {
                     msg.style.color = '#ea1d2c'; msg.innerText = 'Cupom inválido ou expirado.';
                     window.removeCoupon(false);
                     return;
                 }
 
-                let coupon = snap.docs[0].data();
-                coupon.id = snap.docs[0].id; 
+                let coupon = snap[0];
                 
                 if (coupon.storeId === "GLOBAL") {
                     if (storeDataCache && coupon.targetCity && storeDataCache.city !== coupon.targetCity) {
@@ -591,8 +576,8 @@
                             window.removeCoupon(false);
                             return;
                         }
-                        const userQuery = await getDocs(query(collection(db, "customers"), where("email", "==", userEmail)));
-                        if(userQuery.empty || !userQuery.docs[0].data().isSicoob) {
+                        const { data: userQuery } = await supabase.from('customers').select('*').eq('email', userEmail);
+                        if(!userQuery || userQuery.length === 0 || !userQuery[0].isSicoob) {
                             msg.style.color = '#ea1d2c'; msg.innerText = `Acesso Negado! Cupom exclusivo para associados ${coupon.sponsorName || 'Patrocinador'}.`;
                             window.removeCoupon(false);
                             return;
@@ -686,7 +671,6 @@
             document.getElementById('total-val').innerText = `R$ ${finalTotal.toFixed(2)}`;
             document.getElementById('btn-checkout-total').innerText = `R$ ${finalTotal.toFixed(2)}`;
 
-            // 🟢 VALIDAÇÃO DE PEDIDO MÍNIMO DA LOJA 🟢
             const btnFinish = document.getElementById('btn-finish');
             const minOrderAlert = document.getElementById('min-order-alert');
             const minOrderValue = storeDataCache && storeDataCache.minOrder ? parseFloat(storeDataCache.minOrder) : 0;
@@ -777,7 +761,6 @@
         };
 
         window.finishOrder = async () => {
-            // Dupla verificação de segurança no momento do clique
             const minOrderValue = storeDataCache && storeDataCache.minOrder ? parseFloat(storeDataCache.minOrder) : 0;
             if (minOrderValue > 0 && subtotalStore < minOrderValue) {
                 alert(`O valor mínimo para pedidos nesta loja é de R$ ${minOrderValue.toFixed(2)}. Adicione mais itens na sacola.`);
@@ -815,11 +798,13 @@
             btn.disabled = true;
 
             const newOrder = {
+                id: generateId(),
                 date: new Date().toLocaleString('pt-BR'),
                 timestamp: Date.now(), 
                 storeId: cart[0].storeId,
                 storeName: cart[0].store,
                 customerName: userName,
+                customerEmail: userEmail,
                 customer: {
                     name: userName,
                     email: userEmail,
@@ -840,13 +825,12 @@
             };
 
             try {
-                await addDoc(collection(db, "orders"), newOrder);
+                await supabase.from('orders').insert([newOrder]);
                 
                 if (appliedCoupon && appliedCoupon.id) {
-                    const couponRef = doc(db, "coupons", appliedCoupon.id);
-                    await updateDoc(couponRef, {
-                        usedCount: increment(1) 
-                    });
+                    const { data: cData } = await supabase.from('coupons').select('usedCount').eq('id', appliedCoupon.id).single();
+                    const currentCount = cData ? (cData.usedCount || 0) : 0;
+                    await supabase.from('coupons').update({ usedCount: currentCount + 1 }).eq('id', appliedCoupon.id);
                 }
 
                 localStorage.removeItem('cart');
