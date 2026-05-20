@@ -13,7 +13,7 @@
     <script>
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
-            await OneSignal.init({ appId: "SEU_ONESIGNAL_APP_ID" });
+            await OneSignal.init({ appId: "afea195c-b1d8-4a4a-9f90-6121a8e1d8c0" });
             const playerId = await OneSignal.User.PushSubscription.id;
             if (playerId) {
                 // Salva o player_id no perfil do entregador para receber notificações
