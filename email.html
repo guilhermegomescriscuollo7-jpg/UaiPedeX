@@ -181,40 +181,45 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        import { supabase } from './js/supabase-client.js';
 
         let todasDoBanco = [];
         let abaAtual = 'pendente';
         let cidadeAtual = 'Todas';
         let solicitacaoAbertaId = null;
 
-        const q = query(collection(db, "solicitacoes"), orderBy("dataCriacao", "desc"));
-        
-        onSnapshot(q, (snapshot) => {
-            todasDoBanco = [];
-            snapshot.forEach(doc => {
-                todasDoBanco.push({ id: doc.id, ...doc.data() });
-            });
-            aplicarFiltros();
-        });
+        async function loadAndSubscribe() {
+            // Carga inicial: busca stores ordenadas por createdAt desc
+            const { data: initial } = await supabase
+                .from('stores')
+                .select('*')
+                .order('createdAt', { ascending: false });
 
-        function formatarData(timestamp) {
-            if(!timestamp) return 'Agora';
-            const date = timestamp.toDate();
-            return date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            todasDoBanco = initial || [];
+            aplicarFiltros();
+
+            // Realtime: escuta mudanças na tabela stores
+            supabase
+                .channel('email-stores')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, async () => {
+                    const { data: refreshed } = await supabase
+                        .from('stores')
+                        .select('*')
+                        .order('createdAt', { ascending: false });
+                    todasDoBanco = refreshed || [];
+                    aplicarFiltros();
+                })
+                .subscribe();
+        }
+
+        loadAndSubscribe();
+
+        function formatarData(isoOrTimestamp) {
+            if (!isoOrTimestamp) return 'Agora';
+            const date = typeof isoOrTimestamp === 'number'
+                ? new Date(isoOrTimestamp)
+                : new Date(isoOrTimestamp);
+            return date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
 
         window.mudarAba = function(aba) {
@@ -241,9 +246,9 @@
                 return status === abaAtual;
             });
 
-            filtradosPorAba.forEach(req => { if(req.cidade) cidadesSet.add(req.cidade); });
+            filtradosPorAba.forEach(req => { if(req.city) cidadesSet.add(req.city); });
             renderFiltros(Array.from(cidadesSet));
-            let filtradosFinais = cidadeAtual === 'Todas' ? filtradosPorAba : filtradosPorAba.filter(r => r.cidade === cidadeAtual);
+            let filtradosFinais = cidadeAtual === 'Todas' ? filtradosPorAba : filtradosPorAba.filter(r => r.city === cidadeAtual);
             renderLista(filtradosFinais);
         }
 
@@ -256,7 +261,7 @@
             divTodas.onclick = () => window.filtrarCidade('Todas');
             container.appendChild(divTodas);
 
-            cidadesUnicas.forEach(cidade => {
+            cidadesUnicas.sort().forEach(cidade => {
                 const div = document.createElement('div');
                 div.className = `menu-item filter-city ${cidadeAtual === cidade ? 'active' : ''}`;
                 div.innerHTML = `<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg> ${cidade}`;
@@ -278,9 +283,9 @@
                 item.className = `request-item ${!req.lida && abaAtual === 'pendente' ? 'unread' : ''}`;
                 item.onclick = () => abrirDetalhes(req, item);
                 item.innerHTML = `
-                    <div class="req-time">${formatarData(req.dataCriacao)}</div>
-                    <div class="req-title">${req.nomeFantasia}</div>
-                    <div class="req-city">${req.cidade || '---'}</div>
+                    <div class="req-time">${formatarData(req.createdAt)}</div>
+                    <div class="req-title">${req.name || req.nomeFantasia || '---'}</div>
+                    <div class="req-city">${req.city || req.cidade || '---'}</div>
                 `;
                 container.appendChild(item);
             });
@@ -290,31 +295,32 @@
             solicitacaoAbertaId = req.id;
             document.querySelectorAll('.request-item').forEach(el => el.classList.remove('active'));
             elementoClicado.classList.add('active');
-            
+
             if(!req.lida && abaAtual === 'pendente') {
-                await updateDoc(doc(db, "solicitacoes", req.id), { lida: true });
+                await supabase.from('stores').update({ lida: true }).eq('id', req.id);
             }
 
             document.getElementById('empty-state').style.display = 'none';
             document.getElementById('request-content').style.display = 'block';
             if (window.innerWidth <= 600) document.getElementById('detail-pane').style.display = 'block';
 
-            document.getElementById('det-nome').innerText = req.nomeFantasia;
-            document.getElementById('det-cidade').innerText = req.cidade;
-            document.getElementById('det-segmento').innerText = req.segmento;
-            document.getElementById('det-data').innerText = formatarData(req.dataCriacao);
-            document.getElementById('det-razao').innerText = `${req.razaoSocial} | ${req.cnpj}`;
-            document.getElementById('det-responsavel').innerText = req.responsavel;
-            document.getElementById('det-endereco').innerText = `${req.ruaNumero}, ${req.bairro}${req.complemento ? ' - '+req.complemento : ''}`;
-            document.getElementById('det-whats').innerText = req.whatsapp;
-            document.getElementById('det-email').innerText = req.email;
-            document.getElementById('det-operacao').innerText = `Prazo: ${req.prazoDelivery}m | Taxa: ${req.taxaEntrega}`;
+            document.getElementById('det-nome').innerText = req.name || req.nomeFantasia || '---';
+            document.getElementById('det-cidade').innerText = req.city || req.cidade || '---';
+            document.getElementById('det-segmento').innerText = req.segmento || '---';
+            document.getElementById('det-data').innerText = formatarData(req.createdAt || req.dataCriacao);
+            document.getElementById('det-razao').innerText = `${req.razaoSocial || '---'} | ${req.doc || req.cnpj || '---'}`;
+            document.getElementById('det-responsavel').innerText = req.responsavel || '---';
+            document.getElementById('det-endereco').innerText = `${req.ruaNumero || ''}, ${req.bairro || ''}${req.complemento ? ' - '+req.complemento : ''}`;
+            document.getElementById('det-whats').innerText = req.phone || req.whatsapp || '---';
+            document.getElementById('det-email').innerText = req.email || '---';
+            document.getElementById('det-operacao').innerText = `Prazo: ${req.prazoDelivery || '--'}m | Taxa: ${req.taxaEntrega || '--'}`;
             document.getElementById('det-pagamentos').innerText = Array.isArray(req.pagamentos) ? req.pagamentos.join(', ') : '---';
             document.getElementById('det-obs').innerText = req.obs || "Sem observações.";
 
             const imgEl = document.getElementById('det-logo-img');
-            imgEl.src = req.logoFileBase64 || '';
-            imgEl.style.display = req.logoFileBase64 ? 'block' : 'none';
+            const logoSrc = req.logo || req.logoFileBase64 || '';
+            imgEl.src = logoSrc;
+            imgEl.style.display = logoSrc ? 'block' : 'none';
 
             // Visibilidade de Botões baseada no Status
             const status = req.status || 'pendente';
@@ -335,7 +341,11 @@
         window.aprovarLoja = async function() {
             if(!solicitacaoAbertaId) return;
             if(confirm("Aprovar esta solicitação?")) {
-                await updateDoc(doc(db, "solicitacoes", solicitacaoAbertaId), { status: 'aprovado' });
+                const { error } = await supabase
+                    .from('stores')
+                    .update({ status: 'aprovado', isActive: true })
+                    .eq('id', solicitacaoAbertaId);
+                if (error) { alert("Erro ao aprovar: " + error.message); return; }
                 alert("Aprovada!");
                 fecharDetalhes();
             }
@@ -344,22 +354,26 @@
         window.arquivarSolicitacao = async function() {
             if(!solicitacaoAbertaId) return;
             if(confirm("Reprovar/Arquivar esta solicitação?")) {
-                await updateDoc(doc(db, "solicitacoes", solicitacaoAbertaId), { status: 'arquivado' });
+                const { error } = await supabase
+                    .from('stores')
+                    .update({ status: 'arquivado', isActive: false })
+                    .eq('id', solicitacaoAbertaId);
+                if (error) { alert("Erro ao arquivar: " + error.message); return; }
                 fecharDetalhes();
             }
         };
 
-        // NOVA FUNÇÃO DE EXCLUSÃO
+        // EXCLUSÃO PERMANENTE
         window.excluirSolicitacao = async function() {
             if(!solicitacaoAbertaId) return;
             if(confirm("ATENÇÃO: Deseja EXCLUIR PERMANENTEMENTE esta solicitação do banco de dados? Esta ação não pode ser desfeita.")) {
-                try {
-                    await deleteDoc(doc(db, "solicitacoes", solicitacaoAbertaId));
-                    alert("Solicitação excluída com sucesso.");
-                    fecharDetalhes();
-                } catch (e) {
-                    alert("Erro ao excluir: " + e.message);
-                }
+                const { error } = await supabase
+                    .from('stores')
+                    .delete()
+                    .eq('id', solicitacaoAbertaId);
+                if (error) { alert("Erro ao excluir: " + error.message); return; }
+                alert("Solicitação excluída com sucesso.");
+                fecharDetalhes();
             }
         };
 
