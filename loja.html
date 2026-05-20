@@ -821,7 +821,7 @@
             }
         };
 
-        window.addEventListener('load', loadStoreData);
+        loadStoreData();
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
