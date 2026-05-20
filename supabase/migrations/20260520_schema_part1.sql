@@ -37,3 +37,8 @@ CREATE TABLE IF NOT EXISTS products (
 
 CREATE INDEX IF NOT EXISTS idx_products_store_id ON products(store_id);
 CREATE INDEX IF NOT EXISTS idx_products_active ON products(store_id, active);
+
+-- =============================================
+-- 5. Add lida (read) column to stores (for store registration requests in email.html)
+-- =============================================
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS lida BOOLEAN DEFAULT false;

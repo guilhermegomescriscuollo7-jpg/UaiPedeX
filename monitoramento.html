@@ -1493,6 +1493,11 @@
                 supabase.from('customers').select('*')
             ]);
 
+            if (storesRes.error) console.error('monitoring: stores load error', storesRes.error);
+            if (driversRes.error) console.error('monitoring: drivers load error', driversRes.error);
+            if (ordersRes.error) console.error('monitoring: orders load error', ordersRes.error);
+            if (usersRes.error) console.error('monitoring: customers load error', usersRes.error);
+
             allStores = storesRes.data || [];
             cityMap = {};
             allStores.forEach(s => { if (s.city) cityMap[s.id] = s.city; });
@@ -1536,7 +1541,8 @@
         // Realtime: orders
         supabase.channel('monitoring-orders')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
-                const { data } = await supabase.from('orders').select('*');
+                const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(100);
+                if (error) { console.error('monitoring: orders realtime fetch error', error); return; }
                 allOrders = data || [];
                 applyFilters();
             })
@@ -1551,6 +1557,9 @@
                 renderClientes(ordersToProcess);
             })
             .subscribe();
+
+        // Teardown on page unload
+        window.addEventListener('beforeunload', () => { supabase.removeAllChannels(); });
 
         window.applyFilters = () => {
             currentFilter = document.getElementById('city-filter').value;
