@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login da Loja - Dores Delivery</title>
+    <title>Login da Loja - UaiPede</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
@@ -12,8 +12,8 @@
         .login-box { background: #fff; padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 400px; text-align: center; }
         
         .logo-area { margin-bottom: 25px; }
-        .logo-area svg { width: 50px; height: auto; transform: rotate(-10deg); margin-bottom: 10px; }
-        .logo-area h1 { font-size: 1.5rem; color: #111; font-weight: 700; }
+        .logo-area svg { width: 50px; height: auto; transform: rotate(-10deg); margin-bottom: 10px; color: #ea1d2c; }
+        .logo-area h1 { font-size: 1.5rem; color: #111; font-weight: 900; }
         .logo-area p { font-size: 0.9rem; color: #777; margin-top: 5px; }
 
         .alert-box { display: none; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; font-weight: bold; }
@@ -21,28 +21,23 @@
         .alert-success { background: #e6f4ea; color: #00a14b; border: 1px solid #c3e6cb; }
 
         .form-group { margin-bottom: 15px; text-align: left; }
-        .form-group label { display: block; font-size: 0.85rem; color: #555; font-weight: 500; margin-bottom: 6px; }
-        .form-group input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; outline: none; background: #f9f9f9; transition: 0.2s; }
+        .form-group label { display: block; font-size: 0.85rem; color: #555; font-weight: bold; margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; outline: none; background: #f9f9f9; transition: 0.2s; color: #333; }
         .form-group input:focus { border-color: #ea1d2c; background: #fff; }
 
         .btn-primary { width: 100%; background: #ea1d2c; color: #fff; border: none; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s; margin-top: 10px; }
         .btn-primary:hover { background: #c81824; }
         .btn-primary:active { transform: scale(0.98); }
         .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
-
-        .back-link { display: block; margin-top: 25px; font-size: 0.85rem; color: #777; text-decoration: none; }
-        .back-link:hover { color: #111; text-decoration: underline; }
     </style>
 </head>
 <body>
 
     <div class="login-box">
         <div class="logo-area">
-            <svg viewBox="0 0 100 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 15 Q 50 55 95 15" stroke="#ea1d2c" stroke-width="8" stroke-linecap="round"/>
-            </svg>
-            <h1>Painel da Loja</h1>
-            <p>Faça login para gerir os seus pedidos.</p>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <h1>Portal do Lojista</h1>
+            <p>UaiPede</p>
         </div>
 
         <div id="alert-msg" class="alert-box"></div>
@@ -54,47 +49,36 @@
             </div>
             <div class="form-group">
                 <label>Senha</label>
-                <input type="password" id="pass" placeholder="Sua senha" required>
+                <input type="password" id="pass" placeholder="Digite a sua senha" required>
             </div>
             
             <button type="submit" class="btn-primary" id="btn-login">Entrar no Painel</button>
         </form>
-
-        <a href="index.html" class="back-link">← Voltar para o aplicativo do cliente</a>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        // SUA CONFIGURAÇÃO OFICIAL
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        if (localStorage.getItem('loggedStore')) {
+            window.location.href = "vendedor.html";
+        }
+
+        const form = document.getElementById('login-form');
+        const btnLogin = document.getElementById('btn-login');
 
         function showAlert(msg, type) {
             const alertBox = document.getElementById('alert-msg');
             alertBox.innerText = msg;
             alertBox.className = type === 'error' ? 'alert-box alert-error' : 'alert-box alert-success';
             alertBox.style.display = 'block';
-            if(type === 'error') {
-                setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
-            }
         }
 
-        const form = document.getElementById('login-form');
-        const btnLogin = document.getElementById('btn-login');
-
         form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Impede a página de recarregar
+            e.preventDefault();
             
             const email = document.getElementById('email').value.trim();
             const pass = document.getElementById('pass').value.trim();
@@ -105,31 +89,25 @@
             }
 
             btnLogin.disabled = true;
-            btnLogin.innerText = "Verificando...";
+            btnLogin.innerText = "Autenticando...";
 
             try {
-                // Busca a loja no banco de dados nas nuvens
-                const q = query(collection(db, "stores"), where("email", "==", email), where("password", "==", pass));
-                const querySnapshot = await getDocs(q);
+                // Consulta a loja no Supabase
+                const { data, error } = await supabase
+                    .from('stores')
+                    .select('*')
+                    .eq('email', email)
+                    .eq('password', pass);
 
-                if (querySnapshot.empty) {
+                if (error || !data || data.length === 0) {
                     showAlert("❌ E-mail ou senha incorretos.", "error");
-                    document.getElementById('pass').value = '';
                     btnLogin.disabled = false;
                     btnLogin.innerText = "Entrar no Painel";
                     return;
                 }
 
-                // Pega os dados da loja encontrada
-                let storeData = null;
-                let storeId = null;
-                
-                querySnapshot.forEach((doc) => {
-                    storeData = doc.data();
-                    storeId = doc.id;
-                });
+                let storeData = data[0];
 
-                // Verifica bloqueio por falta de pagamento
                 if (storeData.isActive === false) {
                     showAlert("⚠️ Sua loja foi suspensa. Entre em contato com a administração.", "error");
                     btnLogin.disabled = false;
@@ -137,19 +115,17 @@
                     return;
                 }
 
-                // Salva os dados no computador do lojista (para manter ele logado)
-                const loggedStoreInfo = { id: storeId, ...storeData };
-                localStorage.setItem('loggedStore', JSON.stringify(loggedStoreInfo));
+                localStorage.setItem('loggedStore', JSON.stringify(storeData));
                 
                 showAlert("✅ Login efetuado! Redirecionando...", "success");
                 
                 setTimeout(() => {
                     window.location.href = "vendedor.html";
-                }, 500); 
+                }, 800); 
 
             } catch (error) {
                 console.error("Erro no login:", error);
-                showAlert("❌ Erro de conexão com o servidor. Tente novamente.", "error");
+                showAlert("❌ Erro de conexão com o servidor.", "error");
                 btnLogin.disabled = false;
                 btnLogin.innerText = "Entrar no Painel";
             }
