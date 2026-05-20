@@ -23,7 +23,7 @@ const formatBRL = (value) => value.toLocaleString('pt-BR', { style: 'currency', 
 const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 // ==========================================
-// 🟢 SISTEMA DE LOGIN VIA SESSÃO (CORRIGIDO)
+// 🟢 SISTEMA DE LOGIN VIA SESSÃO
 // ==========================================
 const initAdminPanel = () => {
     const isAdminLogged = sessionStorage.getItem('adminAuth');
@@ -129,14 +129,15 @@ async function fetchSettingsAudio() {
                 <source src="${data.audioData}">
                 O seu navegador não suporta áudio.
             </audio>
-            <button class="btn-del" onclick="window.deleteAudioAlert()" style="width: 100%; justify-content: center;">Restaurar Som Padrão</button>
+            <button class="btn-del" onclick="window.deleteAudioAlert(event)" style="width: 100%; justify-content: center;">Restaurar Som Padrão</button>
         `;
     } else {
         container.innerHTML = '<p style="color:#999; font-size:0.9rem;">Nenhum áudio personalizado. Som padrão ativo.</p>';
     }
 }
 
-window.saveAudioAlert = async () => {
+window.saveAudioAlert = async (event) => {
+    if (event) event.preventDefault();
     if (!alertAudioBase64) return alert("Selecione um ficheiro de áudio primeiro.");
     const { error } = await supabase.from('global_settings').upsert({ id: 'notification_audio', audioData: alertAudioBase64, updatedAt: Date.now() });
     if (error) alert("Erro ao guardar áudio: " + error.message);
@@ -148,7 +149,8 @@ window.saveAudioAlert = async () => {
     }
 };
 
-window.deleteAudioAlert = async () => {
+window.deleteAudioAlert = async (event) => {
+    if (event) event.preventDefault();
     if(confirm("Remover áudio personalizado e voltar para o padrão?")) {
         const { error } = await supabase.from('global_settings').delete().eq('id', 'notification_audio');
         if (error) alert("Erro ao remover: " + error.message);
@@ -183,14 +185,15 @@ async function fetchSettingsVideo() {
                 <source src="${data.videoData}">
                 O seu navegador não suporta vídeo.
             </video>
-            <button class="btn-del" onclick="window.deleteSplashVideo()" style="width: 100%; justify-content: center;">Remover Vídeo e Usar Padrão</button>
+            <button class="btn-del" onclick="window.deleteSplashVideo(event)" style="width: 100%; justify-content: center;">Remover Vídeo e Usar Padrão</button>
         `;
     } else {
-        container.innerHTML = '<p style="color:#999; font-size:0.9rem;">Nenhum vídeo personalizado. Animação padrão ativa.</p>';
+        container.innerHTML = '<p style="color:#999; font-size:0.9rem;">Nenhum vídeo personalizado. Animação padrão activa.</p>';
     }
 }
 
-window.saveSplashVideo = async () => {
+window.saveSplashVideo = async (event) => {
+    if (event) event.preventDefault();
     const urlInput = document.getElementById('splash-video-url').value.trim();
     const finalVideo = urlInput ? urlInput : splashVideoBase64;
     
@@ -210,7 +213,8 @@ window.saveSplashVideo = async () => {
     }
 };
 
-window.deleteSplashVideo = async () => {
+window.deleteSplashVideo = async (event) => {
+    if (event) event.preventDefault();
     if(confirm("Remover vídeo de abertura e usar o padrão?")) {
         const { error } = await supabase.from('global_settings').delete().eq('id', 'splash_video');
         if (error) alert("Erro ao remover: " + error.message);
@@ -231,7 +235,8 @@ async function fetchCities() {
     }
 }
 
-window.saveCity = async () => {
+window.saveCity = async (event) => {
+    if (event) event.preventDefault();
     const name = document.getElementById('c-name').value.trim();
     const state = document.getElementById('c-state').value.trim().toUpperCase();
     if(!name || !state) return alert("Preencha o nome e estado.");
@@ -250,7 +255,7 @@ window.saveCity = async () => {
 window.deleteCity = async (id) => {
     if(confirm("Tem a certeza que deseja apagar esta cidade?")) {
         const { error } = await supabase.from('cities').delete().eq('id', id);
-        if (error) alert("Erro ao deletar: " + error.message);
+        if (error) alert("Erro ao eliminar: " + error.message);
         else fetchCities();
     }
 };
@@ -346,9 +351,9 @@ window.toggleSicoobStatus = async (userId, isNowSicoob) => {
 };
 
 window.deleteUser = async (userId, userName) => {
-    if (confirm(`Tem a certeza que deseja excluir ${userName}?`)) {
+    if (confirm(`Tem a certeza que deseja eliminar ${userName}?`)) {
         const { error } = await supabase.from('customers').delete().eq('id', userId); 
-        if (error) alert("Erro ao excluir cliente: " + error.message);
+        if (error) alert("Erro ao eliminar cliente: " + error.message);
         else fetchUsers();
     }
 };
@@ -368,7 +373,8 @@ async function fetchCoupons() {
     if (!error && data) { globalCoupons = data; renderAdminSponsorCoupons(); }
 }
 
-window.createSponsorCoupon = async () => {
+window.createSponsorCoupon = async (event) => {
+    if (event) event.preventDefault();
     const sponsorName = document.getElementById('admin-sponsor-name').value.trim();
     const code = document.getElementById('admin-sponsor-code').value.trim().toUpperCase();
     const type = document.getElementById('admin-sponsor-type').value;
@@ -436,7 +442,7 @@ window.deleteAdminCoupon = async (id) => {
 };
 
 // ==========================================
-// 6. LOJAS
+// 6. LOJAS (STORES)
 // ==========================================
 document.getElementById('s-logo').addEventListener('change', function(e) {
     const file = e.target.files[0];
@@ -460,11 +466,17 @@ async function fetchStores() {
     }
 }
 
-window.saveStore = async () => { 
-    const name = document.getElementById('s-name').value.trim(); const docId = document.getElementById('s-doc').value.trim();
-    const cep = document.getElementById('s-cep').value.trim(); const street = document.getElementById('s-street').value.trim();
-    const email = document.getElementById('s-email').value.trim(); const pass = document.getElementById('s-pass').value.trim(); 
-    const cat = document.getElementById('s-cat').value; const cityDropdownVal = document.getElementById('s-city').value;
+window.saveStore = async (event) => { 
+    if (event) event.preventDefault(); // <--- PREVINE RECARREGAMENTO DE TELA SÚBITO
+
+    const name = document.getElementById('s-name').value.trim(); 
+    const docId = document.getElementById('s-doc').value.trim() || null; 
+    const cep = document.getElementById('s-cep').value.trim() || null; 
+    const street = document.getElementById('s-street').value.trim() || null; 
+    const email = document.getElementById('s-email').value.trim(); 
+    const pass = document.getElementById('s-pass').value.trim(); 
+    const cat = document.getElementById('s-cat').value; 
+    const cityDropdownVal = document.getElementById('s-city').value;
     const dueDateVal = document.getElementById('s-due-date').value;
     const isFeatured = document.getElementById('s-featured').checked;
 
@@ -477,25 +489,27 @@ window.saveStore = async () => {
         if(allStores.find(s => s.email === email && s.id !== editingStoreId)) return alert("Já existe loja com este e-mail."); 
         if (storeImgBase64) storeData.logo = storeImgBase64; 
         
-        // CAPTURA DE ERRO NA ATUALIZAÇÃO DA LOJA
-        const { error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId); 
-        if (error) {
-            alert("ERRO NO BANCO DE DADOS:\n" + error.message);
-            console.error(error);
+        // ADICIONADO .select() PARA VALIDAR SE O RLS DO BANCO BLOQUEOU A EDIÇÃO SILENCIOSAMENTE
+        const { data, error } = await supabase.from('stores').update(storeData).eq('id', editingStoreId).select(); 
+        
+        if (error) { 
+            alert("ERRO NO BANCO DE DADOS:\n" + error.message); 
+            console.error(error); 
+            return; 
+        }
+        
+        if (!data || data.length === 0) {
+            alert("ATENÇÃO: Os dados não foram salvos.\n\nMotivo: A tabela 'stores' no Supabase está com a segurança RLS ativa, mas falta criar uma política (Policy) que permita a operação de 'UPDATE' para usuários públicos/anon.");
             return;
         }
-        alert("Loja atualizada!"); 
+        
+        alert("Loja atualizada com sucesso!"); 
     } else { 
         if(allStores.find(s => s.email === email)) return alert("Já existe loja com este e-mail."); 
         storeData.id = generateId(); storeData.status = 'Aberto'; storeData.isActive = true; storeData.logo = storeImgBase64 || 'https://via.placeholder.com/60';
         
-        // CAPTURA DE ERRO NA CRIAÇÃO DA LOJA
         const { error } = await supabase.from('stores').insert([storeData]); 
-        if (error) {
-            alert("ERRO NO BANCO DE DADOS:\n" + error.message);
-            console.error(error);
-            return;
-        }
+        if (error) { alert("ERRO NO BANCO DE DADOS:\n" + error.message); console.error(error); return; }
         alert("Loja registada!"); 
     } 
     window.cancelEdit(); fetchStores();
@@ -652,22 +666,27 @@ window.renderFaturamento = () => {
 };
 
 // ==========================================
-// 8. ENTREGADORES
+// 8. ENTREGADORES (DRIVERS)
 // ==========================================
 async function fetchDrivers() {
     const { data, error } = await supabase.from('drivers').select('*');
     if (!error && data) { allDrivers = data; renderDriverList(); }
 }
 
-window.saveDriver = async () => { 
-    const name = document.getElementById('d-name').value.trim(); const phone = document.getElementById('d-phone').value.trim(); 
-    const email = document.getElementById('d-email').value.trim(); const pass = document.getElementById('d-pass').value.trim(); 
+window.saveDriver = async (event) => { 
+    if (event) event.preventDefault();
+
+    const name = document.getElementById('d-name').value.trim(); 
+    const phone = document.getElementById('d-phone').value.trim() || null;  
+    const email = document.getElementById('d-email').value.trim(); 
+    const pass = document.getElementById('d-pass').value.trim(); 
     const city = document.getElementById('d-city').value;
 
-    if(!name || !email || !pass || !phone || !city) return alert("Preencha todos os dados."); 
+    if(!name || !email || !pass || !city) return alert("Preencha todos os dados."); 
     if (editingDriverId) { 
-        const { error } = await supabase.from('drivers').update({ name, phone, email, password: pass, city }).eq('id', editingDriverId); 
+        const { data, error } = await supabase.from('drivers').update({ name, phone, email, password: pass, city }).eq('id', editingDriverId).select(); 
         if(error) { alert("ERRO AO ATUALIZAR:\n" + error.message); return; }
+        if(!data || data.length === 0) { alert("Erro RLS: Sem permissão de UPDATE na tabela drivers."); return; }
         alert("Atualizado!"); 
     } else { 
         const { error } = await supabase.from('drivers').insert([{ id: generateId(), name, phone, email, password: pass, city, isActive: true }]); 
@@ -679,7 +698,7 @@ window.saveDriver = async () => {
 
 window.editDriver = (id) => { 
     editingDriverId = id; const driver = allDrivers.find(d => d.id === id); if(!driver) return; 
-    document.getElementById('d-name').value = driver.name; document.getElementById('d-phone').value = driver.phone; 
+    document.getElementById('d-name').value = driver.name; document.getElementById('d-phone').value = driver.phone || ''; 
     document.getElementById('d-email').value = driver.email; document.getElementById('d-pass').value = driver.password; document.getElementById('d-city').value = driver.city || '';
     document.getElementById('btn-save-driver').innerHTML = `Guardar Alterações`; document.getElementById('btn-cancel-driver-edit').style.display = "inline-flex"; 
 };
@@ -711,7 +730,7 @@ function renderDriverList() {
     container.innerHTML = allDrivers.map(d => `<div class="card-item ${d.isActive !== false ? '' : 'suspended'}"> 
         <div style="flex-grow: 1;"> 
             <strong style="font-size: 1.2rem;">${d.name}</strong><br> 
-            <span style="font-size:0.85rem; color:#888;">📞 ${d.phone} | 📍 ${d.city || 'S/ Cidade'}</span><br>
+            <span style="font-size:0.85rem; color:#888;">📞 ${d.phone || '-'} | 📍 ${d.city || 'S/ Cidade'}</span><br>
             <span style="font-size:0.85rem; color:#555;">✉️ ${d.email} | 🔑 ${d.password}</span><br> 
         </div> 
         <div class="actions-col"> 
@@ -732,8 +751,12 @@ async function fetchBanners() {
     if (!error && data) { globalBanners = data; renderBanners(); }
 }
 
-window.saveBanner = async () => {
-    const city = document.getElementById('b-city').value; const storeId = document.getElementById('b-store').value; const linkUrl = document.getElementById('b-link').value.trim(); 
+window.saveBanner = async (event) => {
+    if (event) event.preventDefault();
+    const city = document.getElementById('b-city').value; 
+    const storeId = document.getElementById('b-store').value || null; 
+    const linkUrl = document.getElementById('b-link').value.trim() || null; 
+    
     if (!bannerImgBase64) return alert("Selecione uma imagem.");
     const { error } = await supabase.from('banners').insert([{ id: generateId(), image: bannerImgBase64, city, storeId, link: linkUrl, timestamp: Date.now() }]);
     if(error) alert("Erro ao salvar banner:\n" + error.message); else {
@@ -776,7 +799,8 @@ async function fetchSponsors() {
     if (!error && data) { globalSponsors = data; renderSponsors(); }
 }
 
-window.saveSponsor = async () => {
+window.saveSponsor = async (event) => {
+    if (event) event.preventDefault();
     const city = document.getElementById('sp-city').value; const duration = document.getElementById('sp-duration').value; const transition = document.getElementById('sp-transition').value;
     if (!sponsorImgBase64) return alert("Selecione a imagem.");
     const { error } = await supabase.from('sponsors').insert([{ id: generateId(), image: sponsorImgBase64, city, duration: parseInt(duration), transition, timestamp: Date.now() }]);
@@ -813,7 +837,8 @@ async function fetchAlerts() {
     if (!error && data) { globalAlerts = data; globalAlerts.sort((a,b) => b.timestamp - a.timestamp); renderAlerts(); }
 }
 
-window.saveAlert = async () => {
+window.saveAlert = async (event) => {
+    if (event) event.preventDefault();
     const text = document.getElementById('alert-text').value.trim(); const type = document.getElementById('alert-type').value;
     if(!text) return alert("Digite o texto.");
     const { error } = await supabase.from('global_alerts').insert([{ id: generateId(), text, type, timestamp: Date.now(), active: true }]);
