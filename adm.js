@@ -14,8 +14,6 @@ let allOrders = [];
 
 const formatBRL = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-// Função auxiliar para gerar IDs aleatórios para novos registos
-const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 // ==========================================
 // 🟢 SISTEMA DE LOGIN NATIVO (SUPABASE AUTH)
@@ -241,7 +239,7 @@ window.saveCity = async (event) => {
     const exists = globalCities.find(c => c.name.toLowerCase() === name.toLowerCase() && c.state === state);
     if(exists) return alert("Cidade já registada!");
     
-    const { error } = await supabase.from('cities').insert([{ id: generateId(), name, state }]);
+    const { error } = await supabase.from('cities').insert([{ name, state }]);
     if (error) alert("Erro ao registar cidade: " + error.message);
     else {
         document.getElementById('c-name').value = ''; document.getElementById('c-state').value = '';
@@ -389,7 +387,7 @@ window.createSponsorCoupon = async (event) => {
     }
 
     const { error } = await supabase.from('coupons').insert([{
-        id: generateId(), code, type, value, minOrder, usageLimit, storeId: "GLOBAL", targetCity, sponsorName, 
+        code, type, value, minOrder, usageLimit, storeId: "GLOBAL", targetCity, sponsorName,
         exclusiveFor, active: true, usedCount: 0, createdAt: Date.now()
     }]);
 
@@ -502,7 +500,7 @@ window.saveStore = async (event) => {
         alert("Loja atualizada com sucesso!"); 
     } else { 
         if(allStores.find(s => s.email === email)) return alert("Já existe loja com este e-mail."); 
-        storeData.id = generateId(); storeData.status = 'Aberto'; storeData.isActive = true; storeData.logo = storeImgBase64 || 'https://via.placeholder.com/60';
+        storeData.status = 'Aberto'; storeData.isActive = true; storeData.logo = storeImgBase64 || 'https://via.placeholder.com/60';
         
         const { error } = await supabase.from('stores').insert([storeData]); 
         if (error) { alert("ERRO NO BANCO DE DADOS:\n" + error.message); console.error(error); return; }
@@ -669,33 +667,48 @@ async function fetchDrivers() {
     if (!error && data) { allDrivers = data; renderDriverList(); }
 }
 
-window.saveDriver = async (event) => { 
+window.saveDriver = async (event) => {
     if (event) event.preventDefault();
 
-    const name = document.getElementById('d-name').value.trim(); 
-    const phone = document.getElementById('d-phone').value.trim() || null;  
-    const email = document.getElementById('d-email').value.trim(); 
-    const pass = document.getElementById('d-pass').value.trim(); 
+    const name = document.getElementById('d-name').value.trim();
+    const phone = document.getElementById('d-phone').value.trim() || null;
+    const email = document.getElementById('d-email').value.trim();
+    const pass = document.getElementById('d-pass').value.trim();
     const city = document.getElementById('d-city').value;
 
-    if(!name || !email || !pass || !city) return alert("Preencha todos os dados."); 
-    if (editingDriverId) { 
-        const { data, error } = await supabase.from('drivers').update({ name, phone, email, password: pass, city }).eq('id', editingDriverId).select(); 
+    if (editingDriverId) {
+        if(!name || !email || !city) return alert("Preencha nome, e-mail e cidade.");
+        const { data, error } = await supabase.from('drivers').update({ name, phone, email, city }).eq('id', editingDriverId).select();
         if(error) { alert("ERRO AO ATUALIZAR:\n" + error.message); return; }
         if(!data || data.length === 0) { alert("Erro RLS: Sem permissão de UPDATE na tabela drivers."); return; }
-        alert("Atualizado!"); 
-    } else { 
-        const { error } = await supabase.from('drivers').insert([{ id: generateId(), name, phone, email, password: pass, city, isActive: true }]); 
+        if (pass) {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+            if (resetError) alert("Perfil atualizado, mas erro ao enviar e-mail de redefinição de senha: " + resetError.message);
+            else alert("Atualizado! E-mail de redefinição de senha enviado para o entregador.");
+        } else {
+            alert("Atualizado!");
+        }
+    } else {
+        if(!name || !email || !pass || !city) return alert("Preencha todos os dados.");
+        // 1. Criar utilizador no Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password: pass,
+            options: { data: { name, role_intent: 'driver' } }
+        });
+        if (authError) { alert("Erro ao criar utilizador Auth:\n" + authError.message); return; }
+        // 2. Inserir perfil do entregador sem campo password
+        const { error } = await supabase.from('drivers').insert([{ auth_id: authData.user.id, name, phone, email, city, isActive: true }]);
         if(error) { alert("ERRO AO REGISTRAR:\n" + error.message); return; }
-        alert("Registado!"); 
-    } 
+        alert("Registado!");
+    }
     window.cancelEditDriver(); fetchDrivers();
 };
 
 window.editDriver = (id) => { 
     editingDriverId = id; const driver = allDrivers.find(d => d.id === id); if(!driver) return; 
     document.getElementById('d-name').value = driver.name; document.getElementById('d-phone').value = driver.phone || ''; 
-    document.getElementById('d-email').value = driver.email; document.getElementById('d-pass').value = driver.password; document.getElementById('d-city').value = driver.city || '';
+    document.getElementById('d-email').value = driver.email; document.getElementById('d-pass').value = ''; document.getElementById('d-city').value = driver.city || '';
     document.getElementById('btn-save-driver').innerHTML = `Guardar Alterações`; document.getElementById('btn-cancel-driver-edit').style.display = "inline-flex"; 
 };
 
@@ -754,7 +767,7 @@ window.saveBanner = async (event) => {
     const linkUrl = document.getElementById('b-link').value.trim() || null; 
     
     if (!bannerImgBase64) return alert("Selecione uma imagem.");
-    const { error } = await supabase.from('banners').insert([{ id: generateId(), image: bannerImgBase64, city, storeId, link: linkUrl, timestamp: Date.now() }]);
+    const { error } = await supabase.from('banners').insert([{ image: bannerImgBase64, city, storeId, link: linkUrl, timestamp: Date.now() }]);
     if(error) alert("Erro ao salvar banner:\n" + error.message); else {
         bannerImgBase64 = ''; document.getElementById('b-image').value = ''; document.getElementById('b-store').value = ''; document.getElementById('b-link').value = ''; alert("Banner adicionado!"); fetchBanners();
     }
@@ -799,7 +812,7 @@ window.saveSponsor = async (event) => {
     if (event) event.preventDefault();
     const city = document.getElementById('sp-city').value; const duration = document.getElementById('sp-duration').value; const transition = document.getElementById('sp-transition').value;
     if (!sponsorImgBase64) return alert("Selecione a imagem.");
-    const { error } = await supabase.from('sponsors').insert([{ id: generateId(), image: sponsorImgBase64, city, duration: parseInt(duration), transition, timestamp: Date.now() }]);
+    const { error } = await supabase.from('sponsors').insert([{ image: sponsorImgBase64, city, duration: parseInt(duration), transition, timestamp: Date.now() }]);
     if(error) alert("Erro ao salvar:\n" + error.message); else { sponsorImgBase64 = ''; document.getElementById('sp-image').value = ''; alert("Registado!"); fetchSponsors(); }
 };
 
@@ -837,7 +850,7 @@ window.saveAlert = async (event) => {
     if (event) event.preventDefault();
     const text = document.getElementById('alert-text').value.trim(); const type = document.getElementById('alert-type').value;
     if(!text) return alert("Digite o texto.");
-    const { error } = await supabase.from('global_alerts').insert([{ id: generateId(), text, type, timestamp: Date.now(), active: true }]);
+    const { error } = await supabase.from('global_alerts').insert([{ text, type, timestamp: Date.now(), active: true }]);
     if(error) alert("Erro ao disparar aviso:\n" + error.message); else { document.getElementById('alert-text').value = ''; alert("Aviso disparado!"); fetchAlerts(); }
 }
 
