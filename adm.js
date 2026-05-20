@@ -1,12 +1,7 @@
 // ==========================================
 // CONFIGURAÇÃO SUPABASE
 // ==========================================
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from './js/supabase-client.js';
 
 // ==========================================
 // VARIÁVEIS GLOBAIS E ESTADOS
@@ -26,11 +21,10 @@ const generateId = () => Math.random().toString(36).substring(2, 15) + Math.rand
 // 🟢 SISTEMA DE LOGIN NATIVO (SUPABASE AUTH)
 // ==========================================
 const initAdminPanel = async () => {
-    // Verifica a sessão criptografada direto com o Supabase E o SessionStorage
+    // Verifica a sessão e o role admin via Supabase Auth
     const { data: { session } } = await supabase.auth.getSession();
-    const localAuth = sessionStorage.getItem('adminAuth');
-    
-    if(session && localAuth === 'true') {
+
+    if(session && session.user.app_metadata?.role === 'admin') {
         const appScreen = document.getElementById('app-screen');
         if(appScreen) {
             appScreen.style.display = 'flex'; 
@@ -45,9 +39,7 @@ initAdminPanel();
 
 window.logoutAdmin = async () => {
     if(confirm("Deseja sair do painel administrativo?")) {
-        // Limpa os DOIS sistemas para garantir que não haja loop
         await supabase.auth.signOut();
-        sessionStorage.removeItem('adminAuth');
         window.location.href = 'loginadm.html';
     }
 };
@@ -586,7 +578,7 @@ window.renderStoreList = () => {
             <img src="${s.logo}" class="card-img" style="width: 75px; height: 75px; border-radius: 16px;"> 
             <div style="flex-grow: 1; line-height: 1.6;"> 
                 <strong style="font-size: 1.2rem; color: #111;">${s.name} ${featuredIcon}</strong> ${dueBadge}<br>
-                <span style="font-size:0.85rem; color:#888;">${s.email} | ${s.password}</span><br>
+                <span style="font-size:0.85rem; color:#888;">${s.email}</span><br>
                 <span class="badge-city">📍 ${s.city || 'S/ Cidade'}</span>
             </div> 
             <div class="actions-col" style="flex-direction: column; align-items: flex-end; gap: 8px;"> 
@@ -735,7 +727,7 @@ function renderDriverList() {
         <div style="flex-grow: 1;"> 
             <strong style="font-size: 1.2rem;">${d.name}</strong><br> 
             <span style="font-size:0.85rem; color:#888;">📞 ${d.phone || '-'} | 📍 ${d.city || 'S/ Cidade'}</span><br>
-            <span style="font-size:0.85rem; color:#555;">✉️ ${d.email} | 🔑 ${d.password}</span><br> 
+            <span style="font-size:0.85rem; color:#555;">✉️ ${d.email}</span><br>
         </div> 
         <div class="actions-col"> 
             <button class="btn-edit" onclick="window.editDriver('${d.id}')">Editar</button> 
