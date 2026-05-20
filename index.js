@@ -1,19 +1,15 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, getDocs, query, where, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// ==========================================
+// CONFIGURAÇÃO SUPABASE
+// ==========================================
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-// As credenciais oficiais do Firebase do Dores Delivery / UaiPede
-const firebaseConfig = {
-    apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-    authDomain: "dores-delivery.firebaseapp.com",
-    projectId: "dores-delivery",
-    storageBucket: "dores-delivery.firebasestorage.app",
-    messagingSenderId: "1029498697239",
-    appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ==========================================
 // VARIÁVEIS GLOBAIS
+// ==========================================
 let allStores = []; 
 let allBanners = [];
 let globalCities = [];
@@ -33,27 +29,26 @@ const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
 const userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
 
 if (userEmail) {
-    const userQ = query(collection(db, "customers"), where("email", "==", userEmail));
-    getDocs(userQ).then(userSnap => {
-        if (!userSnap.empty) {
-            isSponsorAssociated = userSnap.docs[0].data().isSicoob === true;
+    supabase.from('customers').select('*').eq('email', userEmail).then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+            isSponsorAssociated = data[0].isSicoob === true;
             if(userCity) window.renderStores();
         }
     });
 }
 
+// ==========================================
 // LÓGICA DE AVISOS GLOBAIS
+// ==========================================
 let dismissedAlerts = JSON.parse(localStorage.getItem('dismissedAlerts')) || [];
 
-onSnapshot(collection(db, "global_alerts"), (snapshot) => {
+async function loadAlerts() {
+    const { data, error } = await supabase.from('global_alerts').select('*');
     const container = document.getElementById('global-alerts-container');
-    if(!container) return;
-    
-    let alertsHtml = '';
-    let alerts = [];
+    if(error || !container || !data) return;
 
-    snapshot.forEach(doc => alerts.push({ id: doc.id, ...doc.data() }));
-    alerts.sort((a,b) => b.timestamp - a.timestamp);
+    let alertsHtml = '';
+    let alerts = data.sort((a,b) => b.timestamp - a.timestamp);
 
     alerts.forEach(alertData => {
         if (alertData.active !== false && !dismissedAlerts.includes(alertData.id)) {
@@ -71,7 +66,7 @@ onSnapshot(collection(db, "global_alerts"), (snapshot) => {
         }
     });
     container.innerHTML = alertsHtml;
-});
+}
 
 window.dismissAlert = (id) => {
     dismissedAlerts.push(id);
@@ -80,52 +75,75 @@ window.dismissAlert = (id) => {
     if(alertEl) alertEl.style.display = 'none';
 };
 
+// ==========================================
+// CARREGAMENTO DOS DADOS (SUPABASE)
+// ==========================================
+async function loadCities() {
+    const { data, error } = await supabase.from('cities').select('*');
+    if (!error && data) {
+        globalCities = data.sort((a,b) => a.name.localeCompare(b.name));
+        if(document.getElementById('city-modal').classList.contains('active')) {
+            window.openCityModal(!(!userCity)); 
+        }
+    }
+}
+
+async function loadStores() {
+    const { data, error } = await supabase.from('stores').select('*');
+    if (!error && data) {
+        allStores = data;
+        if(userCity) {
+            window.renderStores();
+            window.renderFeaturedStores();
+        }
+    }
+}
+
+async function loadBanners() {
+    const { data, error } = await supabase.from('banners').select('*');
+    if (!error && data) {
+        allBanners = data;
+        if(userCity) window.renderBanners();
+    }
+}
+
+async function loadSponsors() {
+    const { data, error } = await supabase.from('sponsors').select('*');
+    if (!error && data) {
+        allActiveSponsors = data.sort((a,b) => a.timestamp - b.timestamp);
+    }
+}
+
+async function loadCoupons() {
+    const { data, error } = await supabase.from('coupons').select('*');
+    if (!error && data) {
+        allCoupons = data;
+        if(userCity) window.renderStores(); 
+    }
+}
+
+// Inicializa a recolha de dados
+loadAlerts();
+loadCities();
+loadStores();
+loadBanners();
+loadSponsors();
+loadCoupons();
+
+// ==========================================
 // INSTALAÇÃO DO PWA
+// ==========================================
 let deferredPrompt;
 const installBanner = document.getElementById('install-banner');
 const installBtn = document.getElementById('btn-install-app');
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; installBanner.style.display = 'flex'; });
-installBtn.addEventListener('click', async () => { installBanner.style.display = 'none'; if (deferredPrompt) { deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; } });
+if(installBtn) {
+    installBtn.addEventListener('click', async () => { installBanner.style.display = 'none'; if (deferredPrompt) { deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; } });
+}
 
-// CARREGAMENTO EM TEMPO REAL DAS COLEÇÕES
-onSnapshot(collection(db, "cities"), (snapshot) => {
-    globalCities = [];
-    snapshot.forEach(doc => globalCities.push({ id: doc.id, ...doc.data() }));
-    globalCities.sort((a,b) => a.name.localeCompare(b.name));
-    
-    if(document.getElementById('city-modal').classList.contains('active')) {
-        window.openCityModal(!(!userCity)); 
-    }
-});
-
-onSnapshot(collection(db, "stores"), (snapshot) => {
-    allStores = [];
-    snapshot.forEach(doc => allStores.push({ id: doc.id, ...doc.data() }));
-    if(userCity) {
-        window.renderStores();
-        window.renderFeaturedStores();
-    }
-});
-
-onSnapshot(collection(db, "banners"), (snapshot) => {
-    allBanners = [];
-    snapshot.forEach(doc => allBanners.push({ id: doc.id, ...doc.data() }));
-    if(userCity) window.renderBanners();
-});
-
-onSnapshot(collection(db, "sponsors"), (snapshot) => {
-    allActiveSponsors = [];
-    snapshot.forEach(doc => allActiveSponsors.push({ id: doc.id, ...doc.data() }));
-    allActiveSponsors.sort((a,b) => a.timestamp - b.timestamp);
-});
-
-onSnapshot(collection(db, "coupons"), (snapshot) => {
-    allCoupons = [];
-    snapshot.forEach(doc => allCoupons.push({ id: doc.id, ...doc.data() }));
-    if(userCity) window.renderStores(); 
-});
-
+// ==========================================
 // 🟢 INICIALIZAÇÃO DA TELA COM VÍDEO MP4 🟢
+// ==========================================
 window.addEventListener('load', async () => {
     const splash = document.getElementById('splash-screen');
     const defaultLogo = document.getElementById('splash-default-logo');
@@ -216,32 +234,30 @@ window.addEventListener('load', async () => {
         }, 500); 
     };
 
-    // Busca o vídeo no Firebase (Painel Admin)
+    // Busca o vídeo no Supabase
     try {
-        const videoSnap = await getDoc(doc(db, "global_settings", "splash_video"));
-        if (videoSnap.exists() && videoSnap.data().videoData) {
+        const { data, error } = await supabase.from('global_settings').select('*').eq('id', 'splash_video').single();
+        if (data && data.videoData) {
             
-            // Se existe vídeo, oculta a logo padrão e mostra o vídeo
             defaultLogo.style.display = 'none';
-            splashVideo.src = videoSnap.data().videoData;
+            splashVideo.src = data.videoData;
             splashVideo.style.display = 'block';
 
             splashVideo.play().catch(() => proceedAfterSplash());
             splashVideo.onended = proceedAfterSplash;
             
-            // Timeout de segurança: 6 segundos
             setTimeout(proceedAfterSplash, 6000); 
         } else {
-            // Se não existe vídeo, usa a animação CSS (2 segundos)
             setTimeout(proceedAfterSplash, 2000);
         }
     } catch(e) {
-        // Se der erro de conexão, usa a animação CSS
         setTimeout(proceedAfterSplash, 2000);
     }
 });
 
+// ==========================================
 // FUNÇÕES DO MODAL DE CIDADES
+// ==========================================
 window.openCityModal = (canClose = true) => {
     const modal = document.getElementById('city-modal');
     const closeBtn = document.getElementById('btn-close-city-modal');
@@ -297,7 +313,9 @@ window.selectCity = (cityString) => {
     window.loadCityContent();
 };
 
+// ==========================================
 // RENDERIZAÇÃO CENTRAL 
+// ==========================================
 window.loadCityContent = () => {
     document.getElementById('main-content').style.display = 'block';
     window.renderBanners();
@@ -341,7 +359,7 @@ window.renderBanners = () => {
     }
 };
 
-// SECÇÃO DE DESTAQUES (SÓ ABERTOS APARECEM - ÍCONE DE ABERTO)
+// SECÇÃO DE DESTAQUES
 window.renderFeaturedStores = () => {
     const featuredSection = document.getElementById('featured-section');
     const track = document.getElementById('featured-track-container');
@@ -418,7 +436,6 @@ window.renderStores = () => {
         return { ...s, dynamicStatus };
     });
 
-    // Lógica do Filtro "Com Cupom" Atualizada para incluir os Globais
     if (quickFilters.hasCoupon) {
         filteredStores = filteredStores.filter(s => {
             return allCoupons.some(c => {
@@ -436,7 +453,6 @@ window.renderStores = () => {
         });
     }
 
-    // Outros Filtros Rápidos
     if (quickFilters.freeShipping) {
         filteredStores = filteredStores.filter(s => !s.deliveryFee || parseFloat(s.deliveryFee) === 0);
     }
@@ -457,7 +473,6 @@ window.renderStores = () => {
         return;
     }
 
-    // Ordenação (Abertos primeiro)
     filteredStores.sort((a, b) => {
         const getWeight = (store) => { if (store.dynamicStatus === 'Fechado') return 1; return 0; };
         return getWeight(a) - getWeight(b);
@@ -474,7 +489,6 @@ window.renderStores = () => {
         let deliveryFeeValue = s.deliveryFee !== undefined && s.deliveryFee !== '' ? parseFloat(s.deliveryFee) : 0;
         let deliveryFeeHtml = deliveryFeeValue > 0 ? `<div>Entrega: R$ ${deliveryFeeValue.toFixed(2).replace('.', ',')}</div>` : '<div>Entrega: Grátis</div>';
         
-        // 🟢 LÓGICA DE EXIBIÇÃO DOS CUPONS DA LOJA + GLOBAIS 🟢
         let storeCoupons = allCoupons.filter(c => {
             if (c.active !== true) return false;
             if (c.usageLimit && (c.usedCount || 0) >= c.usageLimit) return false;
@@ -516,7 +530,6 @@ window.renderStores = () => {
             couponHtml = `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">${couponsTags}</div>`;
         }
 
-        // Lógica do Coraçãozinho (Favoritos)
         let isFav = userFavorites.includes(s.id);
         let favClass = isFav ? 'heart-btn favorited' : 'heart-btn';
 
@@ -542,7 +555,9 @@ window.renderStores = () => {
     }).join('');
 };
 
+// ==========================================
 // FUNÇÕES DOS NOVOS FILTROS E FAVORITOS
+// ==========================================
 window.toggleQuickFilter = (type, btnElement) => {
     quickFilters[type] = !quickFilters[type];
     if (quickFilters[type]) {
@@ -580,7 +595,9 @@ window.filterCategory = (categoryName, element) => {
     window.renderStores();
 };
 
+// ==========================================
 // MÓDULO DA BARRA DE BUSCA (MODAL)
+// ==========================================
 window.openSearchModal = (e) => {
     if(e) { e.preventDefault(); }
     document.getElementById('search-modal').style.display = 'flex';
