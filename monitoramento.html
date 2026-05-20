@@ -1489,7 +1489,7 @@
             const [storesRes, driversRes, ordersRes, usersRes] = await Promise.all([
                 supabase.from('stores').select('*'),
                 supabase.from('drivers').select('*'),
-                supabase.from('orders').select('*'),
+                supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(100),
                 supabase.from('customers').select('*')
             ]);
 
