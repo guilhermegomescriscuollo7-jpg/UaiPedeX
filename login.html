@@ -223,8 +223,8 @@
             btnSubmit.disabled = true;
 
             if (isRegisterMode) {
-                const name  = document.getElementById('reg-name')?.value?.trim();
-                const phone = document.getElementById('reg-phone')?.value?.trim();
+                const name  = document.getElementById('name')?.value?.trim();
+                const phone = document.getElementById('phone')?.value?.trim();
                 const city  = citySelect?.value || '';
                 if (!name || !email || !pass || pass.length < 6) {
                     showAlert('Preencha todos os campos. Senha mínima: 6 caracteres.', 'error');
