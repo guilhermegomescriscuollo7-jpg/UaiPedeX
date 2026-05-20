@@ -138,21 +138,13 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // Importei 'updateDoc' e 'doc' para podermos atualizar o documento do usuário
-        import { getFirestore, collection, query, where, getDocs, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
         if (localStorage.getItem('isLogged') === 'true') {
             window.location.href = "index.html";
@@ -161,9 +153,8 @@
         const citySelect = document.getElementById('regCity');
         async function loadCities() {
             try {
-                const citiesSnap = await getDocs(collection(db, "cities"));
-                let cities = [];
-                citiesSnap.forEach(document => { cities.push(document.data()); });
+                const { data: cities, error } = await supabase.from('cities').select('*');
+                if (error) throw error;
                 
                 cities.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -243,9 +234,9 @@
         };
 
         // ==========================================
-        // LÓGICA DE RECUPERAÇÃO DE SENHA (CRUZAMENTO DE DADOS)
+        // LÓGICA DE RECUPERAÇÃO DE SENHA 
         // ==========================================
-        let idDocumentoRecuperacao = null; // Vai guardar o ID do usuário no banco
+        let idDocumentoRecuperacao = null; 
 
         window.toggleRecoveryMode = () => {
             const authSection = document.getElementById('auth-section');
@@ -253,21 +244,18 @@
             const title = document.getElementById('title-text');
 
             if (recoverySection.style.display === "none") {
-                // Ativar modo recuperação
                 authSection.style.display = "none";
                 recoverySection.style.display = "block";
                 title.innerText = "Recuperar Senha";
                 
-                // Reseta os campos caso o usuário já tenha tentado antes
                 document.getElementById('recovery-step-1').style.display = "block";
                 document.getElementById('recovery-step-2').style.display = "none";
-                document.getElementById('rec-email').value = document.getElementById('email').value; // Puxa o email se já tiver digitado
+                document.getElementById('rec-email').value = document.getElementById('email').value; 
                 document.getElementById('rec-phone').value = '';
                 document.getElementById('rec-new-pass').value = '';
                 idDocumentoRecuperacao = null;
                 document.getElementById('alert-msg').style.display = 'none';
             } else {
-                // Voltar para login
                 authSection.style.display = "block";
                 recoverySection.style.display = "none";
                 title.innerText = isRegisterMode ? "Criar Conta" : "Bem-vindo(a)";
@@ -289,25 +277,19 @@
             btn.innerText = "Procurando...";
 
             try {
-                // Busca no banco um usuário que tenha ESSE email E ESSE telefone
-                const q = query(collection(db, "customers"), where("email", "==", email), where("phone", "==", phone));
-                const querySnapshot = await getDocs(q);
+                const { data, error } = await supabase.from('customers').select('*').eq('email', email).eq('phone', phone);
 
-                if (querySnapshot.empty) {
+                if (error || data.length === 0) {
                     showAlert("❌ Dados incorretos ou não encontrados. Verifique a digitação.", "error");
                     btn.disabled = false;
                     btn.innerText = "Validar Dados";
                     return;
                 }
 
-                // Se achou, guarda o ID do documento do Firestore
-                querySnapshot.forEach((docSnap) => {
-                    idDocumentoRecuperacao = docSnap.id;
-                });
+                idDocumentoRecuperacao = data[0].id;
 
                 showAlert("✅ Identidade confirmada! Crie sua nova senha.", "success");
                 
-                // Esconde o passo 1 e mostra o passo 2 (criar senha)
                 document.getElementById('recovery-step-1').style.display = "none";
                 document.getElementById('recovery-step-2').style.display = "block";
                 btn.disabled = false;
@@ -334,18 +316,13 @@
             btn.innerText = "Salvando...";
 
             try {
-                // Atualiza APENAS o campo de senha no documento daquele usuário específico
-                const userRef = doc(db, "customers", idDocumentoRecuperacao);
-                await updateDoc(userRef, {
-                    password: newPass
-                });
+                await supabase.from('customers').update({ password: newPass }).eq('id', idDocumentoRecuperacao);
 
                 showAlert("✅ Senha atualizada com sucesso! Faça login.", "success");
                 
                 setTimeout(() => {
                     btn.disabled = false;
                     btn.innerText = "Salvar Nova Senha";
-                    // Preenche o login com os dados novos e volta pra tela inicial
                     document.getElementById('email').value = document.getElementById('rec-email').value;
                     document.getElementById('pass').value = newPass;
                     window.toggleRecoveryMode();
@@ -392,18 +369,17 @@
                         return;
                     }
 
-                    const qCheck = query(collection(db, "customers"), where("email", "==", email));
-                    const checkSnapshot = await getDocs(qCheck);
+                    const { data: checkData } = await supabase.from('customers').select('*').eq('email', email);
 
-                    if (!checkSnapshot.empty) {
+                    if (checkData.length > 0) {
                         showAlert("❌ Este e-mail já está cadastrado. Faça login.", "error");
                         btnSubmit.disabled = false;
                         btnSubmit.innerText = "Cadastrar";
                         return;
                     }
 
-                    const newUser = { name, email, phone, city, password: pass };
-                    await addDoc(collection(db, "customers"), newUser);
+                    const newUser = { id: generateId(), name, email, phone, city, password: pass, createdAt: Date.now() };
+                    await supabase.from('customers').insert([newUser]);
 
                     saveLocalSession(newUser);
                     showAlert("✅ Conta criada com sucesso!", "success");
@@ -411,10 +387,9 @@
                     setTimeout(() => { window.location.href = "index.html"; }, 800);
 
                 } else {
-                    const q = query(collection(db, "customers"), where("email", "==", email), where("password", "==", pass));
-                    const querySnapshot = await getDocs(q);
+                    const { data } = await supabase.from('customers').select('*').eq('email', email).eq('password', pass);
 
-                    if (querySnapshot.empty) {
+                    if (data.length === 0) {
                         showAlert("❌ E-mail ou senha incorretos.", "error");
                         document.getElementById('pass').value = '';
                         btnSubmit.disabled = false;
@@ -422,8 +397,7 @@
                         return;
                     }
 
-                    let userData = null;
-                    querySnapshot.forEach((docSnap) => { userData = docSnap.data(); });
+                    let userData = data[0];
 
                     saveLocalSession(userData);
                     showAlert("✅ Login efetuado! Redirecionando...", "success");
