@@ -142,6 +142,10 @@
                         <input type="email" id="cad-email" placeholder="empresa@email.com" required>
                     </div>
                     <div class="form-group">
+                        <label>Senha de Acesso</label>
+                        <input type="password" id="cad-senha" placeholder="Mínimo 8 caracteres" minlength="8" required>
+                    </div>
+                    <div class="form-group">
                         <label>Prazo Médio Delivery (Minutos)</label>
                         <input type="number" id="cad-prazo" placeholder="Ex: 40" required>
                     </div>
@@ -175,109 +179,106 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { supabase } from './js/supabase-client.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+    // --- Load cities into <select> ---
+    const citySelect  = document.getElementById('select-cidade');
+    const loadingText = document.getElementById('loading-cities');
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+    if (citySelect) {
+        const { data: cities, error: citiesError } = await supabase
+            .from('cities')
+            .select('*');
 
-        const selectCidade = document.getElementById('select-cidade');
-        const loadingText = document.getElementById('loading-cities');
+        if (cities && !citiesError) {
+            cities.sort((a, b) => a.name.localeCompare(b.name));
+            citySelect.innerHTML =
+                '<option value="">Selecione a cidade...</option>' +
+                cities.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        }
+        if (loadingText) loadingText.style.display = 'none';
+    }
 
-        onSnapshot(collection(db, "cities"), (snapshot) => {
-            let options = '<option value="">Selecione a sua cidade...</option>';
-            if (snapshot.empty) {
-                options = '<option value="">Nenhuma cidade disponível</option>';
-            } else {
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const cidadeNome = `${data.name} - ${data.state}`;
-                    options += `<option value="${cidadeNome}">${cidadeNome}</option>`;
-                });
-            }
-            selectCidade.innerHTML = options;
-            loadingText.style.display = 'none';
-        }, (error) => {
-            console.error("Erro ao carregar cidades:", error);
-            loadingText.innerText = "Erro ao ligar. Tente novamente.";
-        });
+    // --- Form submit ---
+    const form      = document.getElementById('form-cadastro');
+    const btnSubmit = document.getElementById('btn-submit');
 
-        document.getElementById('form-cadastro').onsubmit = async (e) => {
+    if (form) {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const btnSubmit = document.getElementById('btn-submit');
-            btnSubmit.innerText = "A Enviar...";
-            btnSubmit.disabled = true;
 
-            try {
-                const logoInput = document.getElementById('cad-logo');
-                let logoDataUrl = "";
-                
-                if (logoInput.files.length > 0) {
-                    const file = logoInput.files[0];
-                    logoDataUrl = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => resolve(evt.target.result);
-                        reader.onerror = (err) => reject(err);
-                        reader.readAsDataURL(file);
-                    });
-                }
+            const name     = document.getElementById('cad-nome')?.value?.trim()       || '';
+            const email    = document.getElementById('cad-email')?.value?.trim()      || '';
+            const password = document.getElementById('cad-senha')?.value              || '';
+            const phone    = document.getElementById('cad-whatsapp')?.value?.trim()   || '';
+            const doc      = document.getElementById('cad-cnpj')?.value?.trim()       || '';
+            const city     = citySelect?.value                                         || '';
 
-                const checkboxesPagamento = document.querySelectorAll('.pag-check:checked');
-                const pagamentosSelecionados = Array.from(checkboxesPagamento).map(cb => cb.parentElement.textContent.trim());
-
-                const novaSolicitacao = {
-                    nomeFantasia: document.getElementById('cad-nome').value,
-                    logoFileBase64: logoDataUrl,
-                    razaoSocial: document.getElementById('cad-razao').value,
-                    cnpj: document.getElementById('cad-cnpj').value,
-                    responsavel: document.getElementById('cad-responsavel').value,
-                    segmento: document.getElementById('cad-segmento').value,
-                    
-                    cidade: document.getElementById('select-cidade').value,
-                    ruaNumero: document.getElementById('cad-rua').value,
-                    bairro: document.getElementById('cad-bairro').value,
-                    complemento: document.getElementById('cad-complemento').value,
-
-                    whatsapp: document.getElementById('cad-whatsapp').value,
-                    email: document.getElementById('cad-email').value,
-                    prazoDelivery: document.getElementById('cad-prazo').value,
-                    taxaEntrega: document.getElementById('cad-taxa').value,
-                    
-                    pagamentos: pagamentosSelecionados,
-                    obs: document.getElementById('cad-obs').value,
-
-                    lida: false,
-                    status: 'pendente',
-                    dataCriacao: serverTimestamp()
-                };
-
-                await addDoc(collection(db, "solicitacoes"), novaSolicitacao);
-
-                alert("Pedido de registo enviado com sucesso! Aceda agora à página 'UaiPede Email' para ver esta solicitação chegar em tempo real.");
-                e.target.reset(); 
-                
-            } catch (error) {
-                console.error("Erro ao enviar:", error);
-                if (error.message && error.message.includes("payload is too large")) {
-                    alert("Ocorreu um erro: O ficheiro da Logo é demasiado grande. Por favor, tente enviar uma imagem com tamanho menor.");
-                } else {
-                    alert("Ocorreu um erro ao enviar. Tente novamente.");
-                }
-            } finally {
-                btnSubmit.innerText = "Enviar Pedido de Registo";
-                btnSubmit.disabled = false;
+            if (!name || !email || !password) {
+                alert('Preencha todos os campos obrigatórios.');
+                return;
             }
-        };
-    </script>
+
+            if (btnSubmit) {
+                btnSubmit.disabled  = true;
+                btnSubmit.innerText = 'A Enviar...';
+            }
+
+            // 1. Create auth user
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { name } }
+            });
+
+            if (authError) {
+                alert('Erro ao criar conta: ' + authError.message);
+                if (btnSubmit) {
+                    btnSubmit.disabled  = false;
+                    btnSubmit.innerText = 'Enviar Pedido de Registo';
+                }
+                return;
+            }
+
+            // 2. Insert store record linked to the new auth user
+            const { error: storeError } = await supabase.from('stores').insert([{
+                auth_id:       authData.user.id,
+                name,
+                email,
+                phone,
+                doc,
+                city,
+                segmento:      document.getElementById('cad-segmento')?.value     || '',
+                razaoSocial:   document.getElementById('cad-razao')?.value        || '',
+                responsavel:   document.getElementById('cad-responsavel')?.value  || '',
+                ruaNumero:     document.getElementById('cad-rua')?.value          || '',
+                bairro:        document.getElementById('cad-bairro')?.value       || '',
+                complemento:   document.getElementById('cad-complemento')?.value  || '',
+                prazoDelivery: document.getElementById('cad-prazo')?.value        || '',
+                taxaEntrega:   document.getElementById('cad-taxa')?.value         || '',
+                obs:           document.getElementById('cad-obs')?.value          || '',
+                isActive:      false,
+                status:        'pendente',
+                createdAt:     new Date().toISOString()
+            }]);
+
+            if (storeError) {
+                alert('Conta criada, mas erro ao guardar dados: ' + storeError.message);
+                if (btnSubmit) {
+                    btnSubmit.disabled  = false;
+                    btnSubmit.innerText = 'Enviar Pedido de Registo';
+                }
+                return;
+            }
+
+            alert('Cadastro enviado com sucesso! Aguarde a aprovação do administrador.');
+            form.reset();
+            if (btnSubmit) {
+                btnSubmit.disabled  = false;
+                btnSubmit.innerText = 'Enviar Pedido de Registo';
+            }
+        });
+    }
+</script>
 </body>
 </html>

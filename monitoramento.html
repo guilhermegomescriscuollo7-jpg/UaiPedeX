@@ -1203,25 +1203,12 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        import { supabase } from './js/supabase-client.js';
 
         let allOrders = [];
         let allStores = [];
         let allDrivers = [];
-        let allUsers = []; 
+        let allUsers = [];
         let cityMap = {};
         let currentFilter = 'todas';
 
@@ -1497,35 +1484,82 @@
             document.getElementById('items-rota').innerHTML = cols.rota.length > 0 ? cols.rota.map(createCardHTML).join('') : '<p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:20px;">Nenhum pedido a caminho.</p>';
         }
 
-        onSnapshot(collection(db, "stores"), (snap) => {
-            allStores = []; cityMap = {};
-            snap.forEach(d => {
-                const s = d.data();
-                allStores.push({ id: d.id, ...s });
-                if(s.city) cityMap[d.id] = s.city;
-            });
+        // Carga inicial de todas as coleções
+        async function loadAll() {
+            const [storesRes, driversRes, ordersRes, usersRes] = await Promise.all([
+                supabase.from('stores').select('*'),
+                supabase.from('drivers').select('*'),
+                supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(100),
+                supabase.from('customers').select('*')
+            ]);
+
+            if (storesRes.error) console.error('monitoring: stores load error', storesRes.error);
+            if (driversRes.error) console.error('monitoring: drivers load error', driversRes.error);
+            if (ordersRes.error) console.error('monitoring: orders load error', ordersRes.error);
+            if (usersRes.error) console.error('monitoring: customers load error', usersRes.error);
+
+            allStores = storesRes.data || [];
+            cityMap = {};
+            allStores.forEach(s => { if (s.city) cityMap[s.id] = s.city; });
+
+            allDrivers = driversRes.data || [];
+            allOrders = ordersRes.data || [];
+            allUsers = usersRes.data || [];
+
             updateCityDropdown();
             applyFilters();
             renderStoreStats();
-        });
 
-        onSnapshot(collection(db, "drivers"), (snap) => {
-            allDrivers = []; snap.forEach(d => allDrivers.push({ id: d.id, ...d.data() }));
-            applyFilters();
-        });
-
-        onSnapshot(collection(db, "orders"), (snap) => {
-            allOrders = []; snap.forEach(d => allOrders.push({ id: d.id, ...d.data() }));
-            applyFilters();
-        });
-
-        onSnapshot(collection(db, "users"), (snap) => {
-            allUsers = [];
-            snap.forEach(d => allUsers.push({ id: d.id, ...d.data() }));
-            
             const ordersToProcess = currentFilter === 'todas' ? allOrders : allOrders.filter(o => cityMap[o.storeId] === currentFilter);
             renderClientes(ordersToProcess);
-        });
+        }
+
+        loadAll();
+
+        // Realtime: stores
+        supabase.channel('monitoring-stores')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, async () => {
+                const { data } = await supabase.from('stores').select('*');
+                allStores = data || [];
+                cityMap = {};
+                allStores.forEach(s => { if (s.city) cityMap[s.id] = s.city; });
+                updateCityDropdown();
+                applyFilters();
+                renderStoreStats();
+            })
+            .subscribe();
+
+        // Realtime: drivers
+        supabase.channel('monitoring-drivers')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, async () => {
+                const { data } = await supabase.from('drivers').select('*');
+                allDrivers = data || [];
+                applyFilters();
+            })
+            .subscribe();
+
+        // Realtime: orders
+        supabase.channel('monitoring-orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+                const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(100);
+                if (error) { console.error('monitoring: orders realtime fetch error', error); return; }
+                allOrders = data || [];
+                applyFilters();
+            })
+            .subscribe();
+
+        // Realtime: customers (users)
+        supabase.channel('monitoring-customers')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, async () => {
+                const { data } = await supabase.from('customers').select('*');
+                allUsers = data || [];
+                const ordersToProcess = currentFilter === 'todas' ? allOrders : allOrders.filter(o => cityMap[o.storeId] === currentFilter);
+                renderClientes(ordersToProcess);
+            })
+            .subscribe();
+
+        // Teardown on page unload
+        window.addEventListener('beforeunload', () => { supabase.removeAllChannels(); });
 
         window.applyFilters = () => {
             currentFilter = document.getElementById('city-filter').value;

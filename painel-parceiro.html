@@ -111,47 +111,52 @@
     </main>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        // Configuração do Firebase do UaiPede
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        import { supabase } from './js/supabase-client.js';
 
         let activeAssociates = [];
         let allCities = new Set();
 
-        // 1. Busca automaticamente apenas clientes onde isSicoob == true
-        const q = query(collection(db, "customers"), where("isSicoob", "==", true));
+        async function loadAndSubscribe() {
+            // Carga inicial
+            const { data: initial } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('isSicoob', true);
 
-        onSnapshot(q, (snapshot) => {
             activeAssociates = [];
             allCities.clear();
-
-            snapshot.forEach((doc) => {
-                const user = doc.data();
+            (initial || []).forEach(user => {
                 activeAssociates.push(user);
-                if(user.city) allCities.add(user.city);
+                if (user.city) allCities.add(user.city);
             });
-
-            // Atualiza o contador de clientes ativos
             document.getElementById('count-active').innerText = activeAssociates.length;
-
-            // Preenche o filtro de cidades
             updateCityFilter();
-            
-            // Renderiza a tabela
             window.renderTable();
-        });
+
+            // Realtime: escuta alterações na tabela customers
+            supabase
+                .channel('painel-parceiro-customers')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, async () => {
+                    // Recarrega todos os associados Sicoob
+                    const { data: refreshed } = await supabase
+                        .from('customers')
+                        .select('*')
+                        .eq('isSicoob', true);
+
+                    activeAssociates = [];
+                    allCities.clear();
+                    (refreshed || []).forEach(user => {
+                        activeAssociates.push(user);
+                        if (user.city) allCities.add(user.city);
+                    });
+                    document.getElementById('count-active').innerText = activeAssociates.length;
+                    updateCityFilter();
+                    window.renderTable();
+                })
+                .subscribe();
+        }
+
+        loadAndSubscribe();
 
         function updateCityFilter() {
             const select = document.getElementById('city-filter');

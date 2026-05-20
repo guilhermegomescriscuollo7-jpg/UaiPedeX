@@ -1,28 +1,30 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, deleteDoc, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { supabase } from './js/supabase-client.js';
+import { requireRole } from './js/auth.js';
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-    authDomain: "dores-delivery.firebaseapp.com",
-    projectId: "dores-delivery",
-    storageBucket: "dores-delivery.firebasestorage.app",
-    messagingSenderId: "1029498697239",
-    appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-};
+const session = await requireRole('store', 'login-vendedor.html');
+if (!session) throw new Error('Not authenticated');
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const { data: storeProfile } = await supabase
+    .from('stores')
+    .select('id, name, logo, status, schedule, deliveryFee, deliveryTime, pickupTime, minOrder, paymentMethods, pixKey, moreInfo, categories, dueDate, isActive')
+    .eq('auth_id', session.user.id)
+    .single();
 
 // 🟢 LÓGICA DO ÁUDIO CUSTOMIZADO 🟢
 let customAlertSound = null;
 
-onSnapshot(doc(db, "global_settings", "notification_audio"), (docSnap) => {
-    if (docSnap.exists() && docSnap.data().audioData) {
-        customAlertSound = new Audio(docSnap.data().audioData);
+(async () => {
+    const { data: audioSnap } = await supabase
+        .from('global_settings')
+        .select('audioData')
+        .eq('id', 'notification_audio')
+        .single();
+    if (audioSnap && audioSnap.audioData) {
+        customAlertSound = new Audio(audioSnap.audioData);
     } else {
         customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
     }
-});
+})();
 
 // Funções auxiliares para o chat (evitando erros no console)
 window.playMsgSound = () => { try { new Audio('https://www.myinstants.com/media/sounds/message-tone.mp3').play().catch(()=>{}); } catch(e){} };
@@ -57,11 +59,10 @@ let editingModifiers = [];
 // 🟢 VARIÁVEL PARA O FILTRO DE CATEGORIAS 🟢
 window.currentCategoryFilter = 'Todas';
 
-const loggedStore = JSON.parse(localStorage.getItem('loggedStore'));
-if (!loggedStore || !loggedStore.id) { 
-    localStorage.removeItem('loggedStore');
-    window.location.href = 'login-vendedor.html'; 
+if (!storeProfile || !storeProfile.id) {
+    window.location.href = 'login-vendedor.html';
 }
+const loggedStore = storeProfile; // Keep compatibility with all existing code that references loggedStore
 
 document.getElementById('ui-store-name').innerText = loggedStore.name;
 document.getElementById('ui-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
@@ -132,9 +133,8 @@ setInterval(() => { if(loggedStore) window.updateStatusBtn(); }, 60000);
 window.toggleStoreStatus = async () => {
     const newStatus = loggedStore.status === 'Aberto' ? 'Fechado' : 'Aberto';
     loggedStore.status = newStatus;
-    localStorage.setItem('loggedStore', JSON.stringify(loggedStore));
     window.updateStatusBtn();
-    try { await updateDoc(doc(db, "stores", loggedStore.id), { status: newStatus }); } catch(e) {}
+    try { await supabase.from('stores').update({ status: newStatus }).eq('id', loggedStore.id); } catch(e) {}
 };
 
 window.requestNotificationPermission = () => {
@@ -188,60 +188,64 @@ window.logoutStore = () => {
     }
 };
 
-onSnapshot(doc(db, "stores", loggedStore.id), (docSnap) => {
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        loggedStore.schedule = data.schedule || null;
-        loggedStore.status = data.status || 'Aberto';
-        localStorage.setItem('loggedStore', JSON.stringify(loggedStore));
-        
-        document.getElementById('cfg-delivery-fee').value = data.deliveryFee !== undefined ? data.deliveryFee : '';
-        document.getElementById('cfg-delivery-time').value = data.deliveryTime || '';
-        document.getElementById('cfg-pickup-time').value = data.pickupTime || '';
-        document.getElementById('cfg-min-order').value = data.minOrder !== undefined ? data.minOrder : '';
-        document.getElementById('cfg-payment-methods').value = data.paymentMethods || '';
-        document.getElementById('cfg-pix-key').value = data.pixKey || '';
-        document.getElementById('cfg-more-info').value = data.moreInfo || '';
+// Load store config on init and subscribe to realtime changes
+const applyStoreData = (data) => {
+    loggedStore.schedule = data.schedule || null;
+    loggedStore.status = data.status || 'Aberto';
 
-        if (data.categories && Array.isArray(data.categories)) { myCategories = data.categories; }
-        
-        window.renderScheduleUI(data.schedule || {});
-        window.updateStatusBtn();
-        window.loadCategoriesAndProducts();
+    document.getElementById('cfg-delivery-fee').value = data.deliveryFee !== undefined ? data.deliveryFee : '';
+    document.getElementById('cfg-delivery-time').value = data.deliveryTime || '';
+    document.getElementById('cfg-pickup-time').value = data.pickupTime || '';
+    document.getElementById('cfg-min-order').value = data.minOrder !== undefined ? data.minOrder : '';
+    document.getElementById('cfg-payment-methods').value = data.paymentMethods || '';
+    document.getElementById('cfg-pix-key').value = data.pixKey || '';
+    document.getElementById('cfg-more-info').value = data.moreInfo || '';
 
-        if (data.dueDate) {
-            const daysLeft = Math.ceil((data.dueDate - Date.now()) / (1000 * 60 * 60 * 24));
-            const warningBanner = document.getElementById('payment-warning-banner');
-            const blockOverlay = document.getElementById('payment-block-overlay');
+    if (data.categories && Array.isArray(data.categories)) { myCategories = data.categories; }
 
-            if (daysLeft < 0) {
-                blockOverlay.style.display = 'flex';
-                warningBanner.style.display = 'none';
-                if (data.status === 'Aberto') {
-                    updateDoc(doc(db, "stores", loggedStore.id), { status: 'Fechado', isActive: false });
-                }
-            } else if (daysLeft <= 3) {
-                blockOverlay.style.display = 'none';
-                warningBanner.style.display = 'block';
-                warningBanner.innerText = `⚠️ Atenção: Sua mensalidade vence em ${daysLeft} dia(s). Efetue o pagamento para evitar o bloqueio da loja.`;
-            } else {
-                blockOverlay.style.display = 'none';
-                warningBanner.style.display = 'none';
+    window.renderScheduleUI(data.schedule || {});
+    window.updateStatusBtn();
+    window.loadCategoriesAndProducts();
+
+    if (data.dueDate) {
+        const daysLeft = Math.ceil((data.dueDate - Date.now()) / (1000 * 60 * 60 * 24));
+        const warningBanner = document.getElementById('payment-warning-banner');
+        const blockOverlay = document.getElementById('payment-block-overlay');
+
+        if (daysLeft < 0) {
+            blockOverlay.style.display = 'flex';
+            warningBanner.style.display = 'none';
+            if (data.status === 'Aberto') {
+                supabase.from('stores').update({ status: 'Fechado', isActive: false }).eq('id', loggedStore.id);
             }
+        } else if (daysLeft <= 3) {
+            blockOverlay.style.display = 'none';
+            warningBanner.style.display = 'block';
+            warningBanner.innerText = `⚠️ Atenção: Sua mensalidade vence em ${daysLeft} dia(s). Efetue o pagamento para evitar o bloqueio da loja.`;
+        } else {
+            blockOverlay.style.display = 'none';
+            warningBanner.style.display = 'none';
         }
     }
-});
+};
 
-const qDrivers = collection(db, "drivers");
-onSnapshot(qDrivers, (snapshot) => {
-    onlineDriversCount = 0;
-    snapshot.forEach(doc => {
-        const driverData = doc.data();
-        if ((driverData.isOnline === true || driverData.isOnline === "true") && driverData.isActive !== false) {
-            onlineDriversCount++;
-        }
-    });
+// Initial load from storeProfile
+applyStoreData(storeProfile);
 
+// Subscribe to realtime store changes
+supabase.channel(`store-config-${loggedStore.id}`)
+    .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'stores',
+        filter: `id=eq.${loggedStore.id}`
+    }, (payload) => {
+        Object.assign(loggedStore, payload.new);
+        applyStoreData(payload.new);
+    })
+    .subscribe();
+
+const updateDriverIndicators = () => {
     const indicators = document.querySelectorAll('.driver-status-indicator');
     indicators.forEach(ind => {
         if (onlineDriversCount > 0) {
@@ -256,8 +260,34 @@ onSnapshot(qDrivers, (snapshot) => {
             ind.innerHTML = `🛵 Nenhum entregador online`;
         }
     });
-    window.renderOrders(); 
-});
+    window.renderOrders();
+};
+
+// Load initial driver count
+(async () => {
+    const { data: drivers } = await supabase
+        .from('drivers')
+        .select('id, isOnline, isActive')
+        .eq('isActive', true);
+    if (drivers) {
+        onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
+        updateDriverIndicators();
+    }
+})();
+
+// Subscribe to driver changes
+supabase.channel('drivers-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, async () => {
+        const { data: drivers } = await supabase
+            .from('drivers')
+            .select('id, isOnline, isActive')
+            .eq('isActive', true);
+        if (drivers) {
+            onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
+            updateDriverIndicators();
+        }
+    })
+    .subscribe();
 
 const daysOfWeek = [
     { id: 'seg', name: 'Segunda-feira' }, { id: 'ter', name: 'Terça-feira' }, { id: 'qua', name: 'Quarta-feira' },
@@ -295,7 +325,7 @@ window.saveSchedule = async () => {
             close: document.getElementById(`sch-close-${day.id}`).value
         };
     });
-    try { await updateDoc(doc(db, "stores", loggedStore.id), { schedule: newSchedule }); alert("Horários atualizados com sucesso!"); } catch(e) { alert("Ocorreu um erro ao salvar os horários."); }
+    try { await supabase.from('stores').update({ schedule: newSchedule }).eq('id', loggedStore.id); alert("Horários atualizados com sucesso!"); } catch(e) { alert("Ocorreu um erro ao salvar os horários."); }
 };
 
 window.saveStoreSettings = async () => {
@@ -317,11 +347,11 @@ window.saveStoreSettings = async () => {
         moreInfo: moreInfo
     };
 
-    try { 
-        await updateDoc(doc(db, "stores", loggedStore.id), dataToUpdate); 
-        alert("As configurações da loja foram atualizadas com sucesso e já aparecem para os clientes!"); 
-    } catch(e) { 
-        alert("Erro ao salvar as configurações."); 
+    try {
+        await supabase.from('stores').update(dataToUpdate).eq('id', loggedStore.id);
+        alert("As configurações da loja foram atualizadas com sucesso e já aparecem para os clientes!");
+    } catch(e) {
+        alert("Erro ao salvar as configurações.");
     }
 };
 
@@ -336,9 +366,9 @@ window.updateOrderStatus = async (btnElement, orderId, newStatus) => {
     if (newStatus === 'Saiu para Entrega' || newStatus === 'Pronto para Retirada') updateObj.dispatchedAt = Date.now();
     if (newStatus === 'Concluído' || newStatus === 'Entregue' || newStatus === 'Cancelado') updateObj.deliveredAt = Date.now();
 
-    try { 
-        await updateDoc(doc(db, "orders", orderId), updateObj); 
-    } catch(e) { 
+    try {
+        await supabase.from('orders').update(updateObj).eq('id', orderId);
+    } catch(e) {
         console.error(e);
         alert("Erro ao atualizar status. Verifique sua conexão.");
         btnElement.innerHTML = prevText;
@@ -355,13 +385,13 @@ window.approvePix = async (btnElement, orderId, isApproved) => {
         const prevText = btnElement.innerHTML;
         btnElement.innerHTML = 'Aguarde...';
         btnElement.disabled = true;
-        try { 
+        try {
             let updateData = { pixApproved: isApproved };
             if (!isApproved) {
-                updateData.status = 'Cancelado'; 
+                updateData.status = 'Cancelado';
             }
-            await updateDoc(doc(db, "orders", orderId), updateData); 
-        } catch(e) { 
+            await supabase.from('orders').update(updateData).eq('id', orderId);
+        } catch(e) {
             alert("Erro ao processar o PIX.");
             btnElement.innerHTML = prevText;
             btnElement.disabled = false;
@@ -383,13 +413,13 @@ window.callPlatformDriver = async (btnElement, orderId, orderDeliveryFee) => {
         const prevText = btnElement.innerHTML;
         btnElement.innerHTML = 'Aguarde...';
         btnElement.disabled = true;
-        try { 
-            await updateDoc(doc(db, "orders", orderId), { 
-                status: 'Aguardando Entregador', 
+        try {
+            await supabase.from('orders').update({
+                status: 'Aguardando Entregador',
                 platformDriverFee: driverFeeToSave,
-                dispatchedAt: Date.now() 
-            }); 
-        } catch(e) { 
+                dispatchedAt: Date.now()
+            }).eq('id', orderId);
+        } catch(e) {
             alert("Erro ao solicitar entregador.");
             btnElement.innerHTML = prevText;
             btnElement.disabled = false;
@@ -397,19 +427,46 @@ window.callPlatformDriver = async (btnElement, orderId, orderDeliveryFee) => {
     }
 };
 
-const qOrders = query(collection(db, "orders"), where("storeId", "==", loggedStore.id));
+// Load existing orders and subscribe to realtime changes
+(async () => {
+    const { data: existingOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('storeId', loggedStore.id)
+        .order('timestamp', { ascending: false })
+        .limit(200);
+    if (existingOrders) {
+        globalOrders = existingOrders;
+        previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
+        window.renderOrders();
+        window.renderReports();
+    }
+})();
 
-onSnapshot(qOrders, (snapshot) => {
-    globalOrders = [];
-    snapshot.forEach(document => globalOrders.push({ id: document.id, ...document.data() }));
-
-    const currentPendingCount = globalOrders.filter(o => o.status === 'Pendente').length;
-    if (previousOrderCount !== -1 && currentPendingCount > previousOrderCount) { triggerNewOrderAlert(); }
-    previousOrderCount = currentPendingCount;
-
-    window.renderOrders();
-    window.renderReports();
-});
+supabase.channel(`store-orders-${loggedStore.id}`)
+    .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `storeId=eq.${loggedStore.id}`
+    }, async () => {
+        // Reload all orders on any change
+        const { data: updatedOrders } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('storeId', loggedStore.id)
+            .order('timestamp', { ascending: false })
+            .limit(200);
+        if (updatedOrders) {
+            globalOrders = updatedOrders;
+            const currentPendingCount = globalOrders.filter(o => o.status === 'Pendente').length;
+            if (previousOrderCount !== -1 && currentPendingCount > previousOrderCount) { triggerNewOrderAlert(); }
+            previousOrderCount = currentPendingCount;
+            window.renderOrders();
+            window.renderReports();
+        }
+    })
+    .subscribe();
 
 window.renderOrders = () => {
     const colPendente = document.getElementById('list-pendente'); 
@@ -456,49 +513,49 @@ window.renderOrders = () => {
     activeOrders.forEach(order => {
         if (!chatListeners[order.id]) {
             initialLoadMsg[order.id] = true;
-            const qMsg = query(collection(db, "orders", order.id, "messages"), orderBy("timestamp", "asc"));
-            
-            chatListeners[order.id] = onSnapshot(qMsg, (msgSnapshot) => {
-                let unread = 0;
-                
-                msgSnapshot.forEach(d => {
-                    const m = d.data();
-                    if (m.sender === 'customer' && !m.read) {
-                        unread++;
-                    }
-                });
 
-                window.unreadCounts[order.id] = unread;
-                
-                const badge = document.getElementById(`badge-${order.id}`);
-                if (badge) {
-                    if (unread > 0) {
-                        badge.innerText = unread;
-                        badge.style.display = 'inline-flex';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                }
-
-                if (initialLoadMsg[order.id]) {
-                    initialLoadMsg[order.id] = false;
-                    return; 
-                }
-                
-                msgSnapshot.docChanges().forEach((change) => {
-                    if (change.type === "added") {
-                        const msg = change.doc.data();
-                        if (msg.sender === 'customer') {
-                            if (currentChatOrderId === order.id) {
-                                updateDoc(doc(db, "orders", order.id, "messages", change.doc.id), { read: true });
-                            } else {
-                                window.showMsgToast(order.customerName || 'Cliente', msg.text, order.id);
-                                window.playMsgSound();
-                            }
+            // Load initial unread count
+            supabase
+                .from('order_messages')
+                .select('id, sender, read')
+                .eq('order_id', order.id)
+                .then(({ data: msgs }) => {
+                    if (msgs) {
+                        const unread = msgs.filter(m => m.sender === 'customer' && !m.read).length;
+                        window.unreadCounts[order.id] = unread;
+                        const badge = document.getElementById(`badge-${order.id}`);
+                        if (badge) {
+                            if (unread > 0) { badge.innerText = unread; badge.style.display = 'inline-flex'; }
+                            else { badge.style.display = 'none'; }
                         }
                     }
                 });
-            });
+
+            chatListeners[order.id] = supabase
+                .channel(`order-messages-${order.id}`)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'order_messages',
+                    filter: `order_id=eq.${order.id}`
+                }, async (payload) => {
+                    const msg = payload.new;
+                    if (msg.sender === 'customer') {
+                        if (!initialLoadMsg[order.id]) {
+                            if (currentChatOrderId === order.id) {
+                                await supabase.from('order_messages').update({ read: true }).eq('id', msg.id);
+                            } else {
+                                window.showMsgToast(order.customerName || 'Cliente', msg.text, order.id);
+                                window.playMsgSound();
+                                window.unreadCounts[order.id] = (window.unreadCounts[order.id] || 0) + 1;
+                                const badge = document.getElementById(`badge-${order.id}`);
+                                if (badge) { badge.innerText = window.unreadCounts[order.id]; badge.style.display = 'inline-flex'; }
+                            }
+                        }
+                    }
+                    initialLoadMsg[order.id] = false;
+                })
+                .subscribe();
         }
     });
 };
@@ -623,13 +680,25 @@ function buildOrderCard(order) {
     return `<div class="order-card" ${isPickup ? 'style="border-left: 5px solid var(--warning);"' : ''}><div class="order-header"><div style="display:flex; flex-direction:column;"><span class="order-id">#${shortId} ${orderTypeBadge}</span><div style="margin-top:5px;">${sellerBadge}</div></div><div class="order-time" style="font-size:0.8rem; color:var(--text-muted); text-align: right; display: flex; flex-direction: column; gap: 4px;"><strong style="color: var(--text-dark);">${orderDatePart}</strong><span style="font-weight:600;">${orderTimePart}</span></div></div><div class="customer-info"><strong style="display:flex; align-items:center; gap:8px; font-size:1.05rem;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${order.customerName}</strong>${addressHtml}${chatBtn}</div><ul class="order-items" style="list-style:none; padding:0;">${itemsList}</ul>${paymentBadge}${discountHtml}<div class="order-total">R$ ${(order.total || 0).toFixed(2)}</div>${pixApprovalHtml}${actionBtn}</div>`;
 }
 
-const qProducts = query(collection(db, "products"), where("storeId", "==", loggedStore.id));
-onSnapshot(qProducts, (snapshot) => {
-    globalProducts = [];
-    snapshot.forEach(doc => globalProducts.push({ id: doc.id, ...doc.data() }));
-    window.loadCategoriesAndProducts();
-    window.renderStock(); 
-});
+// Load products and subscribe to realtime changes
+const loadProducts = async () => {
+    const { data: products } = await supabase
+        .from('products')
+        .select('*')
+        .eq('storeId', loggedStore.id);
+    if (products) {
+        globalProducts = products;
+        window.loadCategoriesAndProducts();
+        window.renderStock();
+    }
+};
+loadProducts();
+
+supabase.channel(`store-products-${loggedStore.id}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'products', filter: `storeId=eq.${loggedStore.id}` }, () => {
+        loadProducts();
+    })
+    .subscribe();
 
 window.renderStock = () => {
     const container = document.getElementById('stock-list-container');
@@ -694,9 +763,9 @@ window.renderStock = () => {
 window.toggleProductStock = async (id, isChecked) => {
     document.getElementById(`stock-inputs-${id}`).style.display = isChecked ? 'flex' : 'none';
     try {
-        await updateDoc(doc(db, "products", id), { hasStockControl: isChecked });
-    } catch(e) { 
-        alert("Erro ao ativar/desativar controle."); 
+        await supabase.from('products').update({ hasStockControl: isChecked }).eq('id', id).eq('storeId', loggedStore.id);
+    } catch(e) {
+        alert("Erro ao ativar/desativar controle.");
     }
 };
 
@@ -705,7 +774,7 @@ window.saveProductStock = async (id) => {
     const min = parseInt(document.getElementById(`stock-min-${id}`).value) || 0;
     if (qty < 0 || min < 0) return alert("Quantidades não podem ser negativas.");
     try {
-        await updateDoc(doc(db, "products", id), { stockQuantity: qty, minStock: min });
+        await supabase.from('products').update({ stockQuantity: qty, minStock: min }).eq('id', id).eq('storeId', loggedStore.id);
         alert("Estoque atualizado!");
     } catch(e) {
         alert("Erro ao salvar o estoque.");
@@ -816,20 +885,20 @@ window.removeVariantRow = (index) => { editingVariants.splice(index, 1); window.
 window.promptNewCategory = async () => {
     const catName = prompt("Digite o nome da nova categoria:");
     if(catName && catName.trim() !== "") {
-        if(!myCategories.includes(catName.trim())) { 
-            myCategories.push(catName.trim()); 
-            try { await updateDoc(doc(db, "stores", loggedStore.id), { categories: myCategories }); } catch(e) {}
-        } 
+        if(!myCategories.includes(catName.trim())) {
+            myCategories.push(catName.trim());
+            try { await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id); } catch(e) {}
+        }
         else { alert("Esta categoria já existe!"); }
     }
 };
 
 window.deleteCategory = async (catName) => {
     if(confirm(`Tem certeza que deseja excluir a categoria "${catName}"?\nOs produtos serão movidos para a categoria "Destaques".`)) {
-        myCategories = myCategories.filter(c => c !== catName); 
-        try { await updateDoc(doc(db, "stores", loggedStore.id), { categories: myCategories }); } catch(e) {}
+        myCategories = myCategories.filter(c => c !== catName);
+        try { await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id); } catch(e) {}
         globalProducts.forEach(async (p) => {
-            if (p.category === catName) { try { await updateDoc(doc(db, "products", p.id), { category: 'Destaques' }); } catch(e){} }
+            if (p.category === catName) { try { await supabase.from('products').update({ category: 'Destaques' }).eq('id', p.id).eq('storeId', loggedStore.id); } catch(e){} }
         });
         if (document.getElementById('ed-category').value === catName) document.getElementById('ed-category').value = 'Destaques';
     }
@@ -851,11 +920,11 @@ window.editCategory = async (oldName) => {
             
             try {
                 // Atualiza o array de categorias na loja
-                await updateDoc(doc(db, "stores", loggedStore.id), { categories: myCategories });
-                
+                await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id);
+
                 // Atualiza todos os produtos desta categoria
                 const productsToUpdate = globalProducts.filter(p => p.category === oldName);
-                const batchPromises = productsToUpdate.map(p => updateDoc(doc(db, "products", p.id), { category: cleanName }));
+                const batchPromises = productsToUpdate.map(p => supabase.from('products').update({ category: cleanName }).eq('id', p.id).eq('storeId', loggedStore.id));
                 await Promise.all(batchPromises);
 
                 // Atualiza o filtro se estiver ativo
@@ -1039,7 +1108,7 @@ window.dropCat = async (e, targetCat) => {
         
         // Salvar ordem no banco
         try {
-            await updateDoc(doc(db, "stores", loggedStore.id), { categories: myCategories });
+            await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id);
         } catch(err) {
             console.error("Erro ao reordenar categoria", err);
         }
@@ -1087,7 +1156,7 @@ window.dragOverEmpty = (e) => { e.preventDefault(); };
 window.dropEmpty = async (e, targetCat) => {
     e.preventDefault();
     if (!draggedProdId || draggedFromCat === targetCat) return;
-    await updateDoc(doc(db, "products", draggedProdId), { category: targetCat, order: 0 });
+    await supabase.from('products').update({ category: targetCat, order: 0 }).eq('id', draggedProdId).eq('storeId', loggedStore.id);
     draggedProdId = null;
     window.loadCategoriesAndProducts();
 };
@@ -1130,10 +1199,7 @@ window.dropProd = async (e, targetId, targetCat) => {
         const globalIndex = globalProducts.findIndex(gp => gp.id === prod.id);
         if(globalIndex > -1) globalProducts[globalIndex].order = index;
 
-        batchPromises.push(updateDoc(doc(db, "products", prod.id), {
-            order: index,
-            category: prod.category || 'Destaques'
-        }));
+        batchPromises.push(supabase.from('products').update({ order: index, category: prod.category || 'Destaques' }).eq('id', prod.id).eq('storeId', loggedStore.id));
     });
 
     window.loadCategoriesAndProducts();
@@ -1253,25 +1319,30 @@ window.saveEditingProduct = async () => {
     if(editorImageBase64) prodData.image = editorImageBase64;
 
     try {
-        if (currentEditingId) { 
-            await updateDoc(doc(db, "products", currentEditingId), prodData); 
-            alert("Produto atualizado com sucesso!"); 
-        } else { 
-            if(!editorImageBase64) prodData.image = 'https://via.placeholder.com/150'; 
-            await addDoc(collection(db, "products"), prodData); 
-            alert("Produto salvo com sucesso!"); 
+        if (currentEditingId) {
+            const { error } = await supabase.from('products').update(prodData).eq('id', currentEditingId).eq('storeId', loggedStore.id);
+            if (error) throw error;
+            alert("Produto atualizado com sucesso!");
+        } else {
+            if(!editorImageBase64) prodData.image = 'https://via.placeholder.com/150';
+            const { error } = await supabase.from('products').insert([prodData]);
+            if (error) throw error;
+            alert("Produto salvo com sucesso!");
         }
         window.clearEditor();
-    } catch(e) { 
+    } catch(e) {
         alert("Erro ao salvar produto: " + e.message);
-        console.error("Firebase Error:", e);
+        console.error("Supabase Error:", e);
     }
 };
 
 window.deleteEditingProduct = async () => {
     if(!currentEditingId) return;
-    if(confirm("Deseja apagar este produto permanentemente do seu cardápio?")) {
-        try { await deleteDoc(doc(db, "products", currentEditingId)); window.clearEditor(); } catch(e) {}
+    if(confirm("Deseja desativar este produto do seu cardápio?")) {
+        try {
+            await supabase.from('products').update({ active: false, isActive: false }).eq('id', currentEditingId).eq('storeId', loggedStore.id);
+            window.clearEditor();
+        } catch(e) {}
     }
 };
 
@@ -1678,12 +1749,23 @@ window.renderReports = () => {
 };
 
 // 🟢 LÓGICA DE GESTÃO DE CUPONS 🟢
-const qCoupons = query(collection(db, "coupons"), where("storeId", "==", loggedStore.id));
-onSnapshot(qCoupons, (snapshot) => {
-    globalCoupons = [];
-    snapshot.forEach(doc => globalCoupons.push({ id: doc.id, ...doc.data() }));
-    window.renderCoupons();
-});
+const loadCoupons = async () => {
+    const { data: coupons } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('storeId', loggedStore.id);
+    if (coupons) {
+        globalCoupons = coupons;
+        window.renderCoupons();
+    }
+};
+loadCoupons();
+
+supabase.channel(`store-coupons-${loggedStore.id}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons', filter: `storeId=eq.${loggedStore.id}` }, () => {
+        loadCoupons();
+    })
+    .subscribe();
 
 window.createCoupon = async () => {
     const code = document.getElementById('cp-code').value.trim().toUpperCase();
@@ -1703,7 +1785,7 @@ window.createCoupon = async () => {
     btn.disabled = true;
 
     try {
-        await addDoc(collection(db, "coupons"), {
+        const { error } = await supabase.from('coupons').insert([{
             storeId: loggedStore.id,
             code: code,
             type: type,
@@ -1713,7 +1795,8 @@ window.createCoupon = async () => {
             usedCount: 0,
             isActive: true,
             createdAt: Date.now()
-        });
+        }]);
+        if (error) throw error;
         
         alert("Cupom criado com sucesso!");
         document.getElementById('cp-code').value = '';
@@ -1769,7 +1852,7 @@ window.renderCoupons = () => {
 
 window.toggleCouponStatus = async (id, currentStatus) => {
     try {
-        await updateDoc(doc(db, "coupons", id), { isActive: !currentStatus });
+        await supabase.from('coupons').update({ isActive: !currentStatus }).eq('id', id);
     } catch(e) {
         alert("Erro ao alterar o status do cupom.");
     }
@@ -1778,7 +1861,7 @@ window.toggleCouponStatus = async (id, currentStatus) => {
 window.deleteCoupon = async (id) => {
     if(confirm("Tem certeza que deseja excluir este cupom permanentemente?")) {
         try {
-            await deleteDoc(doc(db, "coupons", id));
+            await supabase.from('coupons').delete().eq('id', id);
         } catch(e) {
             alert("Erro ao excluir o cupom.");
         }
@@ -1801,23 +1884,25 @@ window.openChatModal = (orderId, customerName) => {
     container.innerHTML = '<div class="chat-sys-msg">Carregando mensagens...</div>';
 
     // Cancela a escuta de outro chat, se houver um aberto anteriormente
-    if (chatUnsubscribe) chatUnsubscribe();
-    
-    // Busca as mensagens em tempo real ordenadas por data
-    const qMsg = query(collection(db, "orders", orderId, "messages"), orderBy("timestamp", "asc"));
-    
-    chatUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+    if (chatUnsubscribe) { chatUnsubscribe.unsubscribe(); chatUnsubscribe = null; }
+
+    const renderChatMessages = async () => {
+        const { data: msgs } = await supabase
+            .from('order_messages')
+            .select('*')
+            .eq('order_id', orderId)
+            .order('timestamp', { ascending: true });
+
         container.innerHTML = '';
-        
-        if (snapshot.empty) {
+
+        if (!msgs || msgs.length === 0) {
             container.innerHTML = '<div class="chat-sys-msg">Nenhuma mensagem ainda. Envie um "Olá"!</div>';
             return;
         }
 
-        snapshot.forEach(docSnap => {
-            const msg = docSnap.data();
+        msgs.forEach(async msg => {
             const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-            
+
             if (msg.sender === 'store') {
                 container.innerHTML += `
                     <div class="msg-bubble msg-store">
@@ -1833,23 +1918,35 @@ window.openChatModal = (orderId, customerName) => {
                         <span class="msg-time">${timeStr}</span>
                     </div>
                 `;
-                // Se for mensagem do cliente e não estiver lida, marca como lida no banco
                 if (!msg.read) {
-                    updateDoc(doc(db, "orders", orderId, "messages", docSnap.id), { read: true }).catch(()=>{});
+                    await supabase.from('order_messages').update({ read: true }).eq('id', msg.id);
                 }
             }
         });
-        
-        // Rola o chat para o final (mensagens mais recentes)
+
         setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
-    });
+    };
+
+    await renderChatMessages();
+
+    // Subscribe to new messages in this order
+    chatUnsubscribe = supabase.channel(`chat-modal-${orderId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'order_messages',
+            filter: `order_id=eq.${orderId}`
+        }, async () => {
+            await renderChatMessages();
+        })
+        .subscribe();
 };
 
 window.closeChatModal = () => {
     document.getElementById('chat-modal').classList.remove('active');
     currentChatOrderId = null;
     if (chatUnsubscribe) {
-        chatUnsubscribe();
+        chatUnsubscribe.unsubscribe();
         chatUnsubscribe = null;
     }
 };
@@ -1865,13 +1962,14 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
     input.value = ''; // Limpa a caixa de texto
     
     try {
-        // Salva a mensagem no Firebase
-        await addDoc(collection(db, "orders", currentChatOrderId, "messages"), {
+        const { error } = await supabase.from('order_messages').insert([{
+            order_id: currentChatOrderId,
             text: text,
             sender: 'store',
             timestamp: Date.now(),
             read: false
-        });
+        }]);
+        if (error) throw error;
     } catch(error) {
         console.error("Erro ao enviar mensagem:", error);
         alert("Erro de conexão ao enviar a mensagem. Tente novamente.");

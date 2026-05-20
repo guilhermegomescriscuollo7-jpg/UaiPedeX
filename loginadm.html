@@ -110,65 +110,41 @@
     </div>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    import { supabase } from './js/supabase-client.js';
 
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+    // Redirect if already admin
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user.app_metadata?.role === 'admin') {
+        window.location.href = 'adm.html';
+    }
 
-        const errorMsg = document.getElementById('error-message');
+    const errorMsg = document.getElementById('error-message');
+    const showError = (msg) => {
+        if (errorMsg) { errorMsg.innerText = msg; errorMsg.style.display = 'block'; }
+        const btn = document.getElementById('btn-login');
+        if (btn) { btn.innerText = 'Entrar no Painel'; btn.disabled = false; }
+    };
 
-        // QUEBRA DE LOOP: Verifica as DUAS sessões. Se uma falhar, ele limpa tudo e fica na página.
-        window.onload = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            const localAuth = sessionStorage.getItem('adminAuth');
-            
-            if(session && localAuth === 'true') {
-                window.location.href = 'adm.html';
-            } else {
-                // Força a limpeza para quebrar qualquer loop infinito
-                await supabase.auth.signOut();
-                sessionStorage.removeItem('adminAuth');
+    const btnLogin = document.getElementById('btn-login');
+    if (btnLogin) {
+        btnLogin.addEventListener('click', async () => {
+            const email = document.getElementById('adm-email')?.value?.trim();
+            const pass  = document.getElementById('adm-pass')?.value?.trim();
+
+            if (!email || !pass) return showError('Preencha todos os campos.');
+            btnLogin.innerText = 'Autenticando...';
+            btnLogin.disabled  = true;
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+
+            if (error || data.user.app_metadata?.role !== 'admin') {
+                return showError('E-mail ou senha incorretos.');
             }
-        };
 
-        const showError = (msg) => { 
-            errorMsg.innerText = msg; 
-            errorMsg.style.display = 'block'; 
-            document.getElementById('btn-login').innerText = "Entrar no Painel";
-        };
-
-        document.getElementById('btn-login').addEventListener('click', async () => {
-            const email = document.getElementById('adm-email').value.trim();
-            const pass = document.getElementById('adm-pass').value.trim();
-            const btn = document.getElementById('btn-login');
-            
-            if(!email || !pass) return showError("Por favor, preencha todos os campos.");
-
-            btn.innerText = "Autenticando...";
-            errorMsg.style.display = 'none';
-
-            try {
-                // Autenticação OFICIAL do Supabase Auth
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: pass,
-                });
-
-                if (error) {
-                    throw error;
-                }
-
-                if (data.session) {
-                    // Salva nas duas para garantir estabilidade e ir para o painel
-                    sessionStorage.setItem('adminAuth', 'true');
-                    window.location.href = 'adm.html';
-                }
-            } catch (error) {
-                console.error("Erro na autenticação:", error.message);
-                showError("Erro: E-mail ou palavra-passe incorretos.");
-            }
+            window.location.href = 'adm.html';
         });
-    </script>
+    }
+</script>
 </body>
 </html>

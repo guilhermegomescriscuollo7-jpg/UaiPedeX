@@ -8,6 +8,32 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+    <!-- OneSignal Push Notifications -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({ appId: "afea195c-b1d8-4a4a-9f90-6121a8e1d8c0" });
+            const playerId = await OneSignal.User.PushSubscription.id;
+            if (playerId) {
+                // Salva o player_id no perfil do entregador para receber notificações
+                import('./js/supabase-client.js').then(({ supabase }) => {
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session) {
+                            supabase.from('drivers')
+                                .update({ onesignal_player_id: playerId })
+                                .eq('auth_id', session.user.id)
+                                .then(({ error }) => {
+                                    if (error) console.error('OneSignal: failed to save player_id', error);
+                                })
+                                .catch(err => console.error('OneSignal: unexpected error', err));
+                        }
+                    }).catch(err => console.error('OneSignal: getSession failed', err));
+                }).catch(err => console.error('OneSignal: import failed', err));
+            }
+        });
+    </script>
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background-color: #f4f5f7; color: #3e3e3e; overflow-x: hidden; height: 100vh; display: flex; flex-direction: column; }
@@ -459,26 +485,38 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+        import { supabase } from './js/supabase-client.js';
+        import { requireRole, logout } from './js/auth.js';
 
-        // CHAVE CORRIGIDA AQUI!
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsP9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
+        // ── Auth: verifica sessão e perfil do entregador ─────────────────────
+        const session = await requireRole('driver', 'login-entregador.html');
+        if (!session) throw new Error('Not authenticated');
+
+        const { data: driverProfile } = await supabase
+            .from('drivers')
+            .select('id, name, city, available, onesignal_player_id')
+            .eq('auth_id', session.user.id)
+            .single();
+
+        if (!driverProfile) {
+            alert('Perfil de entregador não encontrado. Contate o suporte.');
+            await supabase.auth.signOut();
+            window.location.href = 'login-entregador.html';
+            throw new Error('No driver profile');
+        }
+
+        const driverId = driverProfile.id;
+
+        // Mantém compatibilidade com variável loggedDriver usada no restante do código
+        let loggedDriver = {
+            id: driverId,
+            name: driverProfile?.name || '',
+            email: session.user.email || '',
+            city: driverProfile?.city || ''
         };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const messaging = getMessaging(app);
 
-        let loggedDriver = JSON.parse(localStorage.getItem('loggedDriver'));
-        let isOnline = false;
-        let storesCache = {}; 
+        let isOnline = driverProfile?.available ?? false;
+        let storesCache = {};
         let availableCount = 0;
         let allPendingOrders = [];
         let myAcceptedOrders = [];
@@ -489,105 +527,97 @@
         window.driverLon = -47.9292;
         window.appMap = null;
         window.driverMarker = null;
-        
+
         window.rotaMap = null;
         window.rotaDriverMarker = null;
         window.storeMarker = null;
         window.customerMarker = null;
         window.routeLine = null;
 
-        async function enablePushNotifications() {
-            try {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    const currentToken = await getToken(messaging, { vapidKey: 'BLAK6sWeoRppo1BfaRA9NvtwdrdPzUOBCf_ZLBiLijOx3UvWkVa9C7wVA64wa7z_qhZ6pXhcSVgkcQK8K4wPkro' });
-                    
-                    if (currentToken) {
-                        console.log('Token gerado:', currentToken);
-                        await updateDoc(doc(db, "drivers", loggedDriver.id), { fcmToken: currentToken });
-                    }
-                }
-            } catch (error) {
-                console.log('Erro ao gerar token push', error);
-            }
+        // ── GPS Broadcast via Supabase Realtime ──────────────────────────────
+        let locationChannel = null;
+
+        function startGPSBroadcast() {
+            if (!driverId) return;
+            locationChannel = supabase.channel(`driver-location-${driverId}`);
+            locationChannel.subscribe();
+        }
+
+        function broadcastLocation(lat, lng) {
+            if (!locationChannel || !driverId) return;
+            locationChannel.send({
+                type: 'broadcast',
+                event: 'location',
+                payload: { lat, lng, driverId }
+            });
         }
 
         window.onload = async () => {
-            // Seta o filtro de data do extrato para a data de hoje ao abrir
             const todayStr = new Date().toISOString().split('T')[0];
             document.getElementById('filter-date-extrato').value = todayStr;
 
-            if (loggedDriver && loggedDriver.id) {
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('app-screen').style.display = 'flex';
-                
-                // Pede a permissão e salva o token
-                enablePushNotifications();
-                
-                // Escuta mensagens enquanto o app está aberto
-                onMessage(messaging, (payload) => {
-                    console.log("Mensagem recebida com app aberto:", payload);
-                    window.playAlertSound();
-                    const toast = document.getElementById('new-ride-toast');
-                    if(toast) {
-                        toast.classList.add('show');
-                        setTimeout(() => toast.classList.remove('show'), 5000);
-                    }
-                });
-                
-                const firstLetter = loggedDriver.name ? loggedDriver.name.charAt(0).toUpperCase() : 'E';
-                document.getElementById('drv-avatar').src = `https://ui-avatars.com/api/?name=${firstLetter}&background=ea1d2c&color=fff&bold=true`;
-                
-                // Preenche os dados na aba Mais
-                document.getElementById('mais-name').innerText = loggedDriver.name || "Entregador";
-                document.getElementById('mais-email').innerText = loggedDriver.email || "";
-                document.getElementById('mais-city').innerText = loggedDriver.city || "Sua Cidade";
-                document.getElementById('mais-avatar').innerText = firstLetter;
-                
-                // INICIALIZAR MAPA LEAFLET DA TELA INICIAL
-                initMap();
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'flex';
 
-                await loadStoresCache();
-                startListeners();
+            const firstLetter = loggedDriver.name ? loggedDriver.name.charAt(0).toUpperCase() : 'E';
+            document.getElementById('drv-avatar').src = `https://ui-avatars.com/api/?name=${firstLetter}&background=ea1d2c&color=fff&bold=true`;
 
-                // Status Online/Offline
-                onSnapshot(doc(db, "drivers", loggedDriver.id), (docSnap) => {
-                    if(docSnap.exists()){
-                        const data = docSnap.data();
-                        isOnline = (data.isOnline === true || data.isOnline === "true");
-                        document.getElementById('driver-status-toggle').checked = isOnline;
-                        
-                        const pill = document.getElementById('pill-toggle');
-                        const searchingPill = document.getElementById('pill-searching');
-                        const maisStatusBadge = document.getElementById('mais-status-badge');
-                        const maisStatusText = document.getElementById('mais-status-text');
-                        
-                        if (isOnline) {
-                            pill.classList.add('online');
-                            pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" checked onchange="window.toggleOnlineStatus()"><span>Disponível</span>';
-                            searchingPill.style.display = 'flex'; 
-                            
-                            maisStatusBadge.classList.remove('offline');
-                            maisStatusText.innerText = "Disponível";
-                        } else {
-                            pill.classList.remove('online');
-                            pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" onchange="window.toggleOnlineStatus()"><span>⚪ Indisponível</span>';
-                            searchingPill.style.display = 'none';
-                            
-                            maisStatusBadge.classList.add('offline');
-                            maisStatusText.innerText = "Indisponível";
-                        }
-                        
-                        updateScreensFlow();
-                    }
-                });
-            }
+            document.getElementById('mais-name').innerText = loggedDriver.name || "Entregador";
+            document.getElementById('mais-email').innerText = loggedDriver.email || "";
+            document.getElementById('mais-city').innerText = loggedDriver.city || "Sua Cidade";
+            document.getElementById('mais-avatar').innerText = firstLetter;
+
+            // Aplicar estado online inicial
+            applyOnlineState(isOnline);
+
+            // INICIALIZAR MAPA LEAFLET DA TELA INICIAL
+            initMap();
+            startGPSBroadcast();
+
+            await loadStoresCache();
+            startListeners();
+
+            // ── Listener de status online/offline do driver ──────────────────
+            supabase
+                .channel(`driver-status-${driverId}`)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'drivers',
+                    filter: `id=eq.${driverId}`
+                }, (payload) => {
+                    isOnline = payload.new.available === true;
+                    applyOnlineState(isOnline);
+                    updateScreensFlow();
+                })
+                .subscribe();
         };
+
+        function applyOnlineState(online) {
+            const pill = document.getElementById('pill-toggle');
+            const searchingPill = document.getElementById('pill-searching');
+            const maisStatusBadge = document.getElementById('mais-status-badge');
+            const maisStatusText = document.getElementById('mais-status-text');
+
+            if (online) {
+                pill.classList.add('online');
+                pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" checked onchange="window.toggleOnlineStatus()"><span>Disponível</span>';
+                searchingPill.style.display = 'flex';
+                maisStatusBadge.classList.remove('offline');
+                maisStatusText.innerText = "Disponível";
+            } else {
+                pill.classList.remove('online');
+                pill.innerHTML = '<input type="checkbox" id="driver-status-toggle" onchange="window.toggleOnlineStatus()"><span>⚪ Indisponível</span>';
+                searchingPill.style.display = 'none';
+                maisStatusBadge.classList.add('offline');
+                maisStatusText.innerText = "Indisponível";
+            }
+        }
 
         function initMap() {
             const mapContainer = document.getElementById('map-container');
             if(!mapContainer) return;
-            
+
             window.appMap = L.map('map-container', {zoomControl: false}).setView([window.driverLat, window.driverLon], 4);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(window.appMap);
 
@@ -602,11 +632,13 @@
                 navigator.geolocation.watchPosition(pos => {
                     window.driverLat = pos.coords.latitude;
                     window.driverLon = pos.coords.longitude;
-                    
+
                     window.driverMarker.setLatLng([window.driverLat, window.driverLon]);
                     window.appMap.setView([window.driverLat, window.driverLon], 16);
-                    
-                    // Se o mapa da rota já existir, atualiza o motoqueiro lá também
+
+                    // Broadcast da localização via Supabase Realtime (sem persistir no banco)
+                    broadcastLocation(window.driverLat, window.driverLon);
+
                     if(window.rotaDriverMarker) {
                         window.rotaDriverMarker.setLatLng([window.driverLat, window.driverLon]);
                     }
@@ -624,46 +656,32 @@
             }
         };
 
-        window.loginDriver = async () => {
-            const email = document.getElementById('login-email').value.trim();
-            const pass = document.getElementById('login-pass').value.trim();
-            const btn = document.querySelector('.btn-login');
-            try {
-                btn.innerText = "Entrando...";
-                const q = query(collection(db, "drivers"), where("email", "==", email), where("password", "==", pass));
-                const snap = await getDocs(q);
-                if (snap.empty) {
-                    btn.innerText = "Entrar";
-                    return alert("E-mail ou senha incorretos.");
-                }
-                loggedDriver = { id: snap.docs[0].id, ...snap.docs[0].data() };
-                localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
-                window.location.reload();
-            } catch(e) {
-                btn.innerText = "Entrar";
-                alert("Erro ao logar. Verifique sua internet.");
-            }
-        };
+        // loginDriver não é mais necessário (login feito em login-entregador.html)
+        // Mantido como no-op para não quebrar o botão HTML caso ainda exista em cache
+        window.loginDriver = () => { window.location.href = 'login-entregador.html'; };
 
-        // BOTAO SAIR COM A CORREÇÃO
         window.logoutDriver = async () => {
             if(confirm("Deseja sair da sua conta?")) {
                 try {
-                    // Tenta ficar offline no banco de dados
-                    if(loggedDriver) await updateDoc(doc(db, "drivers", loggedDriver.id), { isOnline: false });
+                    if(driverId) {
+                        await supabase.from('drivers').update({ available: false }).eq('id', driverId);
+                    }
                 } catch(e) {
                     console.log("Erro ao ficar offline (ignorado):", e);
                 } finally {
-                    // Limpa os dados do celular e desloga de qualquer jeito
-                    localStorage.removeItem('loggedDriver');
-                    window.location.reload(); 
+                    await supabase.removeAllChannels();
+                    await logout('login-entregador.html');
                 }
             }
         };
 
         window.toggleOnlineStatus = async () => {
-            isOnline = !isOnline; 
-            if(loggedDriver) await updateDoc(doc(db, "drivers", loggedDriver.id), { isOnline: isOnline });
+            isOnline = !isOnline;
+            if(driverId) {
+                await supabase.from('drivers').update({ available: isOnline }).eq('id', driverId);
+            }
+            applyOnlineState(isOnline);
+            updateScreensFlow();
         };
 
         window.switchTab = (tab) => {
@@ -671,7 +689,7 @@
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.add('active');
             document.getElementById(`sec-${tab}`).classList.add('active');
-            
+
             const header = document.getElementById('main-header');
             if(tab === 'inicio') {
                 header.style.display = 'flex';
@@ -689,46 +707,113 @@
         };
 
         async function loadStoresCache() {
-            const snap = await getDocs(collection(db, "stores"));
-            snap.forEach(doc => { storesCache[doc.id] = doc.data(); });
+            const { data: stores } = await supabase.from('stores').select('id, name, city, street');
+            if (stores) stores.forEach(s => { storesCache[s.id] = s; });
         }
 
         function startListeners() {
-            onSnapshot(collection(db, "orders"), (snapshot) => {
-                let tempPending = [];
-                let drCity = (loggedDriver.city || "").toLowerCase().split('-')[0].trim();
+            // ── Pedidos disponíveis: ouve novos pedidos (INSERT) com status Pendente ──
+            supabase
+                .channel('driver-available-orders')
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `status=eq.Pendente`
+                }, (payload) => {
+                    const order = payload.new;
+                    const store = storesCache[order.storeId] || {};
+                    const drCity = (loggedDriver.city || "").toLowerCase().split('-')[0].trim();
+                    const stCity = (store.city || "").toLowerCase().split('-')[0].trim();
 
-                snapshot.forEach(docSnap => {
-                    const order = { id: docSnap.id, ...docSnap.data() };
-                    if (order.status === "Aguardando Entregador") {
-                        const store = storesCache[order.storeId] || {};
+                    if (!drCity || stCity === drCity) {
+                        // Adiciona apenas se ainda não estiver na lista
+                        if (!allPendingOrders.find(o => o.id === order.id)) {
+                            allPendingOrders.push(order);
+                        }
+                        if (isOnline && allPendingOrders.length > availableCount) {
+                            window.playAlertSound();
+                            if ("Notification" in window && Notification.permission === "granted") {
+                                new Notification("UaiPede Entregas", { body: "🚀 Nova rota disponível!" });
+                            }
+                        }
+                        availableCount = allPendingOrders.length;
+                        updateScreensFlow();
+                    }
+                })
+                .subscribe();
+
+            // ── Ouve UPDATE de pedidos disponíveis (ex: aceito por outro entregador) ──
+            supabase
+                .channel('driver-orders-update')
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders'
+                }, (payload) => {
+                    const updated = payload.new;
+
+                    // Remove da lista pendente se não é mais Pendente
+                    if (updated.status !== 'Pendente') {
+                        allPendingOrders = allPendingOrders.filter(o => o.id !== updated.id);
+                        availableCount = allPendingOrders.length;
+                    }
+
+                    // Atualiza lista de entregas aceitas pelo driver
+                    if (updated.driverId === driverId) {
+                        if (updated.status === 'Saiu para Entrega') {
+                            if (!myAcceptedOrders.find(o => o.id === updated.id)) {
+                                myAcceptedOrders.push(updated);
+                            }
+                        } else if (['Concluído', 'Concluido', 'Entregue'].includes(updated.status)) {
+                            myAcceptedOrders = myAcceptedOrders.filter(o => o.id !== updated.id);
+                            if (!myHistoryOrders.find(o => o.id === updated.id)) {
+                                myHistoryOrders.push(updated);
+                            }
+                        }
+                        renderMyOrders();
+                        updateHomeStats();
+                        if(document.getElementById('sec-extrato').classList.contains('active')) window.renderHistoryOrders();
+                    }
+
+                    updateScreensFlow();
+                })
+                .subscribe();
+
+            // Carga inicial de pedidos pendentes e do driver
+            (async () => {
+                const drCity = (loggedDriver.city || "").toLowerCase().split('-')[0].trim();
+
+                // Pedidos pendentes filtrados por cidade
+                const { data: pending } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('status', 'Pendente');
+
+                if (pending) {
+                    allPendingOrders = pending.filter(o => {
+                        const store = storesCache[o.storeId] || {};
                         const stCity = (store.city || "").toLowerCase().split('-')[0].trim();
-                        if (!drCity || stCity === drCity) tempPending.push(order);
-                    }
-                });
-
-                if(isOnline && tempPending.length > availableCount) {
-                    window.playAlertSound();
-                    if ("Notification" in window && Notification.permission === "granted") {
-                        new Notification("UaiPede Entregas", { body: "🚀 Nova rota disponível!" });
-                    }
+                        return !drCity || stCity === drCity;
+                    });
+                    availableCount = allPendingOrders.length;
                 }
-                allPendingOrders = tempPending;
-                availableCount = allPendingOrders.length;
-                updateScreensFlow();
-            });
 
-            onSnapshot(query(collection(db, "orders"), where("driverId", "==", loggedDriver.id)), (snapshot) => {
-                myAcceptedOrders = []; myHistoryOrders = [];
-                snapshot.forEach(docSnap => {
-                    const order = { id: docSnap.id, ...docSnap.data() };
-                    if (order.status === 'Saiu para Entrega') myAcceptedOrders.push(order);
-                    if (['Concluído', 'Concluido', 'Entregue'].includes(order.status)) myHistoryOrders.push(order);
-                });
+                // Pedidos em rota do driver
+                const { data: myOrders } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('driverId', driverId);
+
+                if (myOrders) {
+                    myAcceptedOrders = myOrders.filter(o => o.status === 'Saiu para Entrega');
+                    myHistoryOrders = myOrders.filter(o => ['Concluído', 'Concluido', 'Entregue'].includes(o.status));
+                }
+
                 renderMyOrders();
                 updateHomeStats();
-                if(document.getElementById('sec-extrato').classList.contains('active')) window.renderHistoryOrders();
-            });
+                updateScreensFlow();
+            })();
         }
 
         function updateScreensFlow() {
@@ -751,7 +836,7 @@
             const today = new Date().toISOString().split('T')[0];
             const filterStart = new Date(today + 'T00:00:00').getTime();
             const filterEnd = filterStart + 86400000;
-            
+
             const todayCompleted = myHistoryOrders.filter(o => {
                 const t = o.deliveredAt || o.timestamp;
                 return t >= filterStart && t < filterEnd;
@@ -762,7 +847,7 @@
             const valStr = `R$ ${todayGains.toFixed(2).replace('.',',')}`;
             document.getElementById('home-earnings').innerText = valStr;
             document.getElementById('home-earnings-2').innerText = valStr;
-            
+
             const totalRotas = myAcceptedOrders.length + todayCompleted.length;
             document.getElementById('home-accepted').innerText = totalRotas;
             document.getElementById('home-accepted-2').innerText = totalRotas;
@@ -777,7 +862,7 @@
                 const store = storesCache[order.storeId] || {};
                 const mockedDistance = (Math.random() * 5 + 1).toFixed(1);
                 const price = (order.platformDriverFee || 5).toFixed(2).replace('.',',');
-                
+
                 return `
                 <div class="order-list-item" onclick="window.openOrderDetails('${order.id}')">
                     <div class="oli-details">
@@ -796,17 +881,17 @@
             const store = storesCache[order.storeId] || {};
             let storeAddress = store.street || "Endereço não informado";
             if (store.city) storeAddress += ` - ${store.city}`;
-            
+
             const mockedDistance = (Math.random() * 5 + 1).toFixed(1);
             const mockedTime = Math.floor(Math.random() * 15 + 10);
 
             document.getElementById('det-price-val').innerText = `R$ ${(order.platformDriverFee || 5).toFixed(2).replace('.',',')}`;
             document.getElementById('det-dist').innerText = `${mockedDistance} km`;
             document.getElementById('det-time').innerText = `${mockedTime} min`;
-            
+
             document.getElementById('det-store-name').innerText = `Coleta • ${store.name || order.storeName}`;
             document.getElementById('det-store-addr').innerText = storeAddress;
-            document.getElementById('det-cust-addr').innerText = order.customer.address;
+            document.getElementById('det-cust-addr').innerText = order.customer?.address || order.customerAddress || '';
             document.getElementById('det-pay-method').innerText = order.paymentMethod || 'Maquininha / Dinheiro';
 
             document.getElementById('order-details-modal').classList.add('active');
@@ -846,33 +931,34 @@
             noMsg.style.display = 'none';
             mapRotaContainer.style.display = 'block';
             topBadge.style.display = 'block';
-            
+
             container.innerHTML = myAcceptedOrders.map(order => {
                 const store = storesCache[order.storeId] || {};
                 let storeAddress = store.street || "Endereço da loja não informado";
                 if (store.city) storeAddress += ` - ${store.city}`;
-                const qCust = encodeURIComponent(order.customer.address + ', ' + (loggedDriver.city || ""));
-                
+                const custAddr = order.customer?.address || order.customerAddress || '';
+                const qCust = encodeURIComponent(custAddr + ', ' + (loggedDriver.city || ""));
+
                 return `
                 <div class="rota-card">
                     <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid #f0f0f0; padding-bottom:15px;">
                         <div style="display:flex; flex-direction:column;">
                             <span style="font-weight:900; color:#ea1d2c; font-size:0.8rem; text-transform:uppercase;">Rota em andamento</span>
-                            <span style="font-size:0.8rem; color:#777; margin-top:2px;">#${order.id.substring(0,5).toUpperCase()}</span>
+                            <span style="font-size:0.8rem; color:#777; margin-top:2px;">#${order.id.toString().substring(0,5).toUpperCase()}</span>
                         </div>
                         <strong style="font-size:1.4rem; color:#00a14b;">R$ ${(order.platformDriverFee || 5).toFixed(2).replace('.',',')}</strong>
                     </div>
-                    
+
                     <div style="display:flex; gap:12px; margin-bottom:20px;">
                         <span style="font-size:1.2rem; width:24px; text-align:center;">🏬</span>
                         <div><strong style="font-size:0.95rem; color:#111;">Coleta • ${order.storeName}</strong><p style="font-size:0.85rem; color:#717171; margin-top:2px;">${storeAddress}</p></div>
                     </div>
-                    
+
                     <div style="display:flex; gap:12px; margin-bottom:25px;">
                         <span style="font-size:1.2rem; width:24px; text-align:center;">📍</span>
-                        <div><strong style="font-size:0.95rem; color:#111;">Entrega</strong><p style="font-size:0.85rem; color:#717171; margin-top:2px;">${order.customer.address}</p></div>
+                        <div><strong style="font-size:0.95rem; color:#111;">Entrega</strong><p style="font-size:0.85rem; color:#717171; margin-top:2px;">${custAddr}</p></div>
                     </div>
-                    
+
                     <button class="btn-waze" onclick="window.open('https://waze.com/ul?q=${qCust}&navigate=yes', '_blank')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
                         Abrir no Waze
@@ -884,7 +970,7 @@
             if (!window.rotaMap) {
                 window.rotaMap = L.map('map-rota-container', {zoomControl: false}).setView([window.driverLat, window.driverLon], 14);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(window.rotaMap);
-                
+
                 window.rotaDriverMarker = L.marker([window.driverLat, window.driverLon], {
                     icon: L.divIcon({html: '<div style="font-size:35px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">🛵</div>', className: '', iconSize: [35,35], iconAnchor: [17,35]})
                 }).addTo(window.rotaMap);
@@ -896,19 +982,17 @@
                 window.customerMarker = L.marker([0,0], {
                     icon: L.divIcon({html: '<div style="font-size:30px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">📍</div>', className: '', iconSize: [30,30], iconAnchor: [15,30]})
                 }).addTo(window.rotaMap);
-                
+
                 window.routeLine = L.polyline([], {color: '#0d6efd', weight: 5, dashArray: '10, 10'}).addTo(window.rotaMap);
             }
 
-            // Pega o primeiro pedido para renderizar no mapa
             const order = myAcceptedOrders[0];
             const store = storesCache[order.storeId] || {};
-            
-            // Adicionando Doresópolis, MG como fallback para garantir precisão do mapa local
-            const searchStoreAddress = (store.street || order.storeName) + (store.city ? `, ${store.city}` : ', Doresópolis, MG');
-            const searchCustAddress = order.customer.address + (loggedDriver.city ? `, ${loggedDriver.city}` : ', Doresópolis, MG');
+            const custAddr0 = order.customer?.address || order.customerAddress || '';
 
-            // Busca as coordenadas reais e plota no mapa assincronamente
+            const searchStoreAddress = (store.street || order.storeName) + (store.city ? `, ${store.city}` : ', Doresópolis, MG');
+            const searchCustAddress = custAddr0 + (loggedDriver.city ? `, ${loggedDriver.city}` : ', Doresópolis, MG');
+
             (async () => {
                 const storeCoords = await geocodeAddress(searchStoreAddress);
                 const custCoords = await geocodeAddress(searchCustAddress);
@@ -921,17 +1005,16 @@
                 window.storeMarker.setLatLng([finalStoreLat, finalStoreLon]);
                 window.customerMarker.setLatLng([finalCustLat, finalCustLon]);
                 window.rotaDriverMarker.setLatLng([window.driverLat, window.driverLon]);
-                
+
                 window.routeLine.setLatLngs([
                     [window.driverLat, window.driverLon],
                     [finalStoreLat, finalStoreLon],
                     [finalCustLat, finalCustLon]
                 ]);
-                
+
                 setTimeout(() => {
                     window.rotaMap.invalidateSize();
-                    // Foca a câmera para que todos os pontos fiquem visíveis, ignorando as margens do cartão inferior
-                    window.rotaMap.fitBounds(window.routeLine.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 350]}); 
+                    window.rotaMap.fitBounds(window.routeLine.getBounds(), {paddingTopLeft: [50, 50], paddingBottomRight: [50, 350]});
                 }, 300);
             })();
         }
@@ -939,7 +1022,7 @@
         window.renderHistoryOrders = () => {
             const container = document.getElementById('history-rides-list');
             const filterDateStr = document.getElementById('filter-date-extrato').value;
-            
+
             let filteredHistory = myHistoryOrders;
 
             if (filterDateStr) {
@@ -954,12 +1037,12 @@
             }
 
             filteredHistory.sort((a, b) => (b.deliveredAt || b.timestamp) - (a.deliveredAt || a.timestamp));
-            
+
             let total = 0;
             const list = filteredHistory.map(o => {
                 const fee = parseFloat(o.platformDriverFee || 5);
                 total += fee;
-                
+
                 const d = new Date(o.deliveredAt || o.timestamp);
                 const day = String(d.getDate()).padStart(2, '0');
                 const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -978,14 +1061,25 @@
                     <div class="rep-right green">R$ ${fee.toFixed(2).replace('.',',')}</div>
                 </div>`;
             }).join('');
-            
+
             document.getElementById('hist-total-val').innerText = `R$ ${total.toFixed(2).replace('.',',')}`;
             container.innerHTML = list || '<div style="text-align:center; color:#999; padding:20px;">Nenhum repasse neste dia.</div>';
         };
 
         window.acceptOrder = async (id) => {
             document.getElementById('btn-accept-route').innerText = "Aguarde...";
-            await updateDoc(doc(db, "orders", id), { status: 'Saiu para Entrega', driverId: loggedDriver.id, driverName: loggedDriver.name, driverPhone: loggedDriver.phone || "" });
+            const { data: updated, error } = await supabase.from('orders').update({
+                status: 'Saiu para Entrega',
+                driverId: driverId,
+                driverName: loggedDriver.name,
+                driverPhone: ''
+            }).eq('id', id).eq('status', 'Pendente').select();
+
+            if (error || !updated || updated.length === 0) {
+                document.getElementById('btn-accept-route').innerText = "Montar rota com esse pedido";
+                alert('Este pedido já foi aceito por outro entregador.');
+                return;
+            }
             window.closeOrderDetails();
             window.closeOrderList();
             window.switchTab('em-rota');
@@ -993,7 +1087,10 @@
 
         window.finishDelivery = async (id) => {
             if(confirm("Confirmar entrega ao cliente?")) {
-                await updateDoc(doc(db, "orders", id), { status: 'Concluído', deliveredAt: Date.now() });
+                await supabase.from('orders').update({
+                    status: 'Concluído',
+                    deliveredAt: Date.now()
+                }).eq('id', id);
                 window.switchTab('extrato');
             }
         };
@@ -1003,9 +1100,8 @@
             const newName = prompt("Digite seu novo nome:", loggedDriver.name);
             if(newName && newName.trim() !== "") {
                 try {
-                    await updateDoc(doc(db, "drivers", loggedDriver.id), { name: newName.trim() });
+                    await supabase.from('drivers').update({ name: newName.trim() }).eq('id', driverId);
                     loggedDriver.name = newName.trim();
-                    localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
                     document.getElementById('mais-name').innerText = loggedDriver.name;
                     alert("Nome atualizado com sucesso!");
                 } catch (e) {
@@ -1018,9 +1114,8 @@
             const newPass = prompt("Digite a sua nova senha de acesso:");
             if(newPass && newPass.trim() !== "") {
                 try {
-                    await updateDoc(doc(db, "drivers", loggedDriver.id), { password: newPass.trim() });
-                    loggedDriver.password = newPass.trim();
-                    localStorage.setItem('loggedDriver', JSON.stringify(loggedDriver));
+                    const { error } = await supabase.auth.updateUser({ password: newPass.trim() });
+                    if (error) throw error;
                     alert("Senha alterada com sucesso!");
                 } catch (e) {
                     alert("Erro ao alterar a senha. Verifique sua conexão.");
@@ -1029,6 +1124,10 @@
         };
 
         window.playAlertSound = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(); osc.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5); } catch(e){} };
+
+        window.addEventListener('beforeunload', () => {
+            supabase.removeAllChannels();
+        });
     </script>
 </body>
 </html>

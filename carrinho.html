@@ -278,13 +278,7 @@
     </div>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
-        const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        import { supabase } from './js/supabase-client.js';
 
         let cart = JSON.parse(localStorage.getItem('cart')) || [];
         let finalTotal = 0;
@@ -797,51 +791,49 @@
             btn.innerHTML = "Enviando Pedido...";
             btn.disabled = true;
 
-            const newOrder = {
-                id: generateId(),
-                date: new Date().toLocaleString('pt-BR'),
-                timestamp: Date.now(), 
-                storeId: cart[0].storeId,
-                storeName: cart[0].store,
-                customerName: userName,
-                customerEmail: userEmail,
-                customer: {
-                    name: userName,
-                    email: userEmail,
-                    address: addressString
+            // Build payload — do NOT send total (server calculates it)
+            const orderPayload = {
+                store_id: cart[0].storeId,
+                items: cart.map(item => ({
+                    product_id: item.productId || item.id,
+                    qty: item.qty || item.quantity || 1
+                })),
+                delivery_method: currentMethod,
+                address: {
+                    rua:    document.getElementById('end-rua')?.value?.trim()    || '',
+                    num:    document.getElementById('end-num')?.value?.trim()    || '',
+                    bairro: document.getElementById('end-bairro')?.value?.trim() || '',
+                    cidade: document.getElementById('end-cidade')?.value?.trim() || '',
+                    comp:   document.getElementById('end-comp')?.value?.trim()   || '',
                 },
-                items: cart,
-                deliveryFee: currentDeliveryFee, 
-                orderType: currentMethod, 
-                
-                discount: discountAmount,
-                couponCode: appliedCoupon ? appliedCoupon.code : null,
-                isSponsored: appliedCoupon && appliedCoupon.isSponsored ? true : false,
-                sponsorName: appliedCoupon && appliedCoupon.isSponsored ? appliedCoupon.sponsorName : null,
-                
-                total: finalTotal,
-                paymentMethod: paymentString,
-                status: 'Pendente' 
+                coupon_code: appliedCoupon?.code || null
             };
 
             try {
-                await supabase.from('orders').insert([newOrder]);
-                
-                if (appliedCoupon && appliedCoupon.id) {
-                    const { data: cData } = await supabase.from('coupons').select('usedCount').eq('id', appliedCoupon.id).single();
-                    const currentCount = cData ? (cData.usedCount || 0) : 0;
-                    await supabase.from('coupons').update({ usedCount: currentCount + 1 }).eq('id', appliedCoupon.id);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    alert('Faça login para finalizar o pedido.');
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                const { data: responseData, error: fnError } = await supabase.functions.invoke('place-order', {
+                    body: orderPayload
+                });
+
+                if (fnError || !responseData?.success) {
+                    throw new Error(responseData?.error || fnError?.message || 'Erro ao registrar pedido');
                 }
 
                 localStorage.removeItem('cart');
                 sessionStorage.removeItem('appliedCoupon');
-                
-                alert("Pedido realizado com sucesso! A loja já foi notificada.");
-                window.location.href = "pedidos.html";
+
+                alert('Pedido realizado com sucesso! A loja já foi notificada.');
+                window.location.href = 'pedidos.html';
 
             } catch (error) {
-                console.error("Erro ao finalizar pedido:", error);
-                alert("Ocorreu um erro de conexão. Tente novamente.");
+                console.error('Erro ao finalizar pedido:', error);
+                alert('Ocorreu um erro: ' + error.message);
                 btn.innerHTML = `<span>Confirmar Pedido</span><span id="btn-checkout-total">R$ ${finalTotal.toFixed(2)}</span>`;
                 btn.disabled = false;
             }

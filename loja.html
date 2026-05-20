@@ -293,11 +293,7 @@
     <div id="toast-container"></div>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        import { supabase } from './js/supabase-client.js';
 
         let currentStoreProducts = []; let activeProduct = null; let activeStore = {};
         let prodQty = 1; let basePriceCalc = 0; let storeCoupons = [];
@@ -396,7 +392,7 @@
                     }
                 }
 
-                const { data: productsData } = await supabase.from('products').select('*').eq('storeId', storeIdParam);
+                const { data: productsData } = await supabase.from('products').select('*').eq('storeId', storeIdParam).eq('active', true);
                 if (productsData) {
                     currentStoreProducts = productsData;
                     renderFullStore(s, dynamicStatus);

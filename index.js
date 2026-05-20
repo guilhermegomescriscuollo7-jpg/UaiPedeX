@@ -1,11 +1,7 @@
 // ==========================================
 // CONFIGURAÇÃO SUPABASE
 // ==========================================
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from './js/supabase-client.js';
 
 // ==========================================
 // VARIÁVEIS GLOBAIS
@@ -28,14 +24,21 @@ let isSponsorAssociated = false;
 const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
 const userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
 
-if (userEmail) {
-    supabase.from('customers').select('*').eq('email', userEmail).then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-            isSponsorAssociated = data[0].isSicoob === true;
-            if(userCity) window.renderStores();
-        }
-    });
-}
+// Use Supabase Auth session if available
+supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+        supabase.from('customers')
+            .select('isSicoob')
+            .eq('auth_id', session.user.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    isSponsorAssociated = data.isSicoob === true;
+                    if (userCity) window.renderStores();
+                }
+            });
+    }
+});
 
 // ==========================================
 // LÓGICA DE AVISOS GLOBAIS
@@ -56,16 +59,27 @@ async function loadAlerts() {
             if(alertData.type === 'promo') { typeClass = 'promo'; icon = '🎉'; }
             if(alertData.type === 'success') { typeClass = 'success'; icon = '✅'; }
 
+            const safeId = String(alertData.id).replace(/[^a-zA-Z0-9_-]/g, '');
             alertsHtml += `
-                <div class="global-alert-card ${typeClass}" id="alert-${alertData.id}">
+                <div class="global-alert-card ${typeClass}" id="alert-${safeId}" data-alert-id="${safeId}">
                     <div style="font-size: 1.4rem;">${icon}</div>
-                    <div class="alert-text">${alertData.text}</div>
-                    <button class="alert-close" onclick="window.dismissAlert('${alertData.id}')">✕</button>
+                    <div class="alert-text"></div>
+                    <button class="alert-close" data-dismiss="${safeId}">✕</button>
                 </div>
             `;
         }
     });
     container.innerHTML = alertsHtml;
+    // Fill text via textContent to prevent XSS
+    container.querySelectorAll('.global-alert-card').forEach((card, i) => {
+        const alert = alerts.filter(a => a.active !== false && !dismissedAlerts.includes(a.id))[i];
+        if (alert) {
+            const textEl = card.querySelector('.alert-text');
+            if (textEl) textEl.textContent = alert.text;
+        }
+        const btn = card.querySelector('.alert-close');
+        if (btn) btn.addEventListener('click', () => window.dismissAlert(btn.dataset.dismiss));
+    });
 }
 
 window.dismissAlert = (id) => {

@@ -108,92 +108,89 @@
     </p>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { supabase } from './js/supabase-client.js';
+    import { saveCustomerSession } from './js/auth.js';
 
-        // SUA CONFIGURAÇÃO OFICIAL FIREBASE
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
+    const form      = document.getElementById('registerForm');
+    const btnSubmit = document.getElementById('btnSubmit');
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+    function showError(el, errorId) {
+        el.classList.add('invalid');
+        const errEl = document.getElementById(errorId);
+        if (errEl) errEl.style.display = 'block';
+    }
+    function hideError(el, errorId) {
+        el.classList.remove('invalid');
+        const errEl = document.getElementById(errorId);
+        if (errEl) errEl.style.display = 'none';
+    }
 
-        const form = document.getElementById('registerForm');
-        const btnSubmit = document.getElementById('btnSubmit');
+    // Load cities
+    const citySelect = document.getElementById('regCity');
+    if (citySelect) {
+        const { data: cities } = await supabase.from('cities').select('*');
+        if (cities) {
+            cities.sort((a, b) => a.name.localeCompare(b.name));
+            citySelect.innerHTML = '<option value="">Selecione sua cidade...</option>' +
+                cities.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        }
+    }
 
+    if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             let isValid = true;
 
-            const name = document.getElementById('regName');
+            const name  = document.getElementById('regName');
             const email = document.getElementById('regEmail');
             const phone = document.getElementById('regPhone');
-            const pass = document.getElementById('regPass');
+            const pass  = document.getElementById('regPass');
+            const city  = citySelect?.value || '';
 
-            // Validações
-            if (name.value.trim().length < 3) { showError(name, 'nameError'); isValid = false; } else { hideError(name, 'nameError'); }
-            if (!email.value.includes('@') || !email.value.includes('.')) { showError(email, 'emailError'); isValid = false; } else { hideError(email, 'emailError'); }
-            if (phone.value.trim().length < 8) { showError(phone, 'phoneError'); isValid = false; } else { hideError(phone, 'phoneError'); }
-            if (pass.value.length < 6) { showError(pass, 'passError'); isValid = false; } else { hideError(pass, 'passError'); }
-
+            if (name && name.value.trim().length < 3)  { showError(name,  'nameError');  isValid = false; } else if (name) hideError(name,  'nameError');
+            if (email && !email.value.includes('@'))    { showError(email, 'emailError'); isValid = false; } else if (email) hideError(email, 'emailError');
+            if (phone && phone.value.trim().length < 8) { showError(phone, 'phoneError'); isValid = false; } else if (phone) hideError(phone, 'phoneError');
+            if (pass  && pass.value.length < 6)         { showError(pass,  'passError');  isValid = false; } else if (pass) hideError(pass,  'passError');
             if (!isValid) return;
 
-            // Bloqueia o botão para evitar cliques duplos
-            btnSubmit.disabled = true;
-            btnSubmit.innerText = "Criando conta...";
+            btnSubmit.disabled  = true;
+            btnSubmit.innerText = 'Criando conta...';
 
-            try {
-                // 1. Verifica se o e-mail já existe no banco
-                const q = query(collection(db, "customers"), where("email", "==", email.value.trim()));
-                const querySnapshot = await getDocs(q);
+            const { data, error } = await supabase.auth.signUp({
+                email: email.value.trim(),
+                password: pass.value.trim(),
+                options: { data: { name: name.value.trim(), phone: phone.value.trim(), city } }
+            });
 
-                if (!querySnapshot.empty) {
-                    alert("Este e-mail já está cadastrado. Por favor, faça login.");
-                    btnSubmit.disabled = false;
-                    btnSubmit.innerText = "Criar conta";
-                    return;
-                }
-
-                // 2. Salva o novo cliente no Firebase
-                const newCustomer = {
-                    name: name.value.trim(),
-                    email: email.value.trim(),
-                    phone: phone.value.trim(),
-                    password: pass.value.trim(), // Nota: Num ambiente 100% de produção usaríamos o Firebase Auth para senhas criptografadas.
-                    createdAt: new Date().toISOString()
-                };
-
-                await addDoc(collection(db, "customers"), newCustomer);
-                
-                // 3. Salva no aparelho do usuário que ele já tem uma conta local (para auto-login)
-                localStorage.setItem('loggedCustomer', JSON.stringify({ name: newCustomer.name, email: newCustomer.email, phone: newCustomer.phone }));
-
-                alert("Conta criada com sucesso! Bem-vindo ao Dores Delivery.");
-                window.location.href = "index.html"; // Redireciona para o app principal
-
-            } catch (error) {
-                console.error("Erro ao cadastrar:", error);
-                alert("Erro ao conectar com o servidor. Tente novamente.");
-                btnSubmit.disabled = false;
-                btnSubmit.innerText = "Criar conta";
+            if (error) {
+                alert(error.message === 'User already registered'
+                    ? 'Este e-mail já está cadastrado. Por favor, faça login.'
+                    : 'Erro ao criar conta. Tente novamente.');
+                btnSubmit.disabled  = false;
+                btnSubmit.innerText = 'Criar conta';
+                return;
             }
+
+            await supabase.from('customers').insert([{
+                auth_id: data.user.id,
+                name:    name.value.trim(),
+                email:   email.value.trim(),
+                phone:   phone.value.trim(),
+                city,
+                createdAt: new Date().toISOString()
+            }]);
+
+            saveCustomerSession(data.user, {
+                name:  name.value.trim(),
+                email: email.value.trim(),
+                phone: phone.value.trim(),
+                city
+            });
+
+            alert('Conta criada com sucesso! Bem-vindo.');
+            window.location.href = 'index.html';
         });
-
-        function showError(el, errorId) {
-            el.classList.add('invalid');
-            document.getElementById(errorId).style.display = 'block';
-        }
-
-        function hideError(el, errorId) {
-            el.classList.remove('invalid');
-            document.getElementById(errorId).style.display = 'none';
-        }
-    </script>
+    }
+</script>
 </body>
 </html>

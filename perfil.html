@@ -167,16 +167,16 @@
     </nav>
 
     <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+        import { supabase } from './js/supabase-client.js';
+        import { requireRole } from './js/auth.js';
 
-        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
-        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const session = await requireRole('customer', 'login.html');
+        if (!session) throw new Error('Not authenticated');
 
         const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
-        const isLogged = !!loggedCustomer || localStorage.getItem('isLogged') === 'true'; 
+        const isLogged = true;
         let userName = loggedCustomer ? loggedCustomer.name : localStorage.getItem('userName');
-        let userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
+        let userEmail = loggedCustomer ? loggedCustomer.email : session.user.email;
 
         let userDocId = null;
         let fullUserData = null; 
