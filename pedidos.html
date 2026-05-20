@@ -229,19 +229,11 @@
     </nav>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBinV28T4xWvYAnE0Yed1rbsp9dEF_n7Eg",
-            authDomain: "dores-delivery.firebaseapp.com",
-            projectId: "dores-delivery",
-            storageBucket: "dores-delivery.firebasestorage.app",
-            messagingSenderId: "1029498697239",
-            appId: "1:1029498697239:web:3ebc070bbd65048bd9ce52"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const supabaseUrl = 'https://mvhqsiyalupodrtsfncj.supabase.co';
+        const supabaseKey = 'sb_publishable_K_tmqPg95RJlCCzwRZln4Q_kmfrUw0G'; 
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
         const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
         const isLogged = !!loggedCustomer || localStorage.getItem('isLogged') === 'true'; 
@@ -249,165 +241,174 @@
 
         let globalOrders = [];
         let currentChatOrderId = null;
-        let chatUnsubscribe = null;
         let activeOrderForDetails = null;
+        let ordersPollInterval = null;
+        let chatPollInterval = null;
         
-        let chatListeners = {};
-        let initialLoadMsg = {};
+        let processedMsgIds = new Set();
 
         window.onload = () => {
-            if (!isLogged) {
+            if (!isLogged || !userEmail) {
                 document.getElementById('unlogged-state').style.display = 'block';
                 return;
             }
 
-            const q = query(collection(db, "orders"), where("customer.email", "==", userEmail));
-            
-            onSnapshot(q, (snapshot) => {
-                globalOrders = [];
-                snapshot.forEach(doc => globalOrders.push({ id: doc.id, ...doc.data() }));
+            // Polling para os pedidos e notificações de mensagens
+            const fetchOrders = async () => {
+                const { data: ordersData, error } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('customer->>email', userEmail);
+                
+                if (error) return;
 
-                const container = document.getElementById('orders-container');
-                const emptyState = document.getElementById('empty-state');
+                globalOrders = ordersData || [];
+                renderOrdersList();
+                checkNewMessages();
+            };
 
-                if (globalOrders.length === 0) {
-                    emptyState.style.display = 'block';
-                    container.innerHTML = '';
-                    return;
+            fetchOrders();
+            ordersPollInterval = setInterval(fetchOrders, 5000); // Atualiza a cada 5 segundos
+        };
+
+        const renderOrdersList = () => {
+            const container = document.getElementById('orders-container');
+            const emptyState = document.getElementById('empty-state');
+
+            if (globalOrders.length === 0) {
+                emptyState.style.display = 'block';
+                container.innerHTML = '';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            // Ordena os pedidos mais recentes primeiro
+            const sortedOrders = [...globalOrders].sort((a, b) => b.timestamp - a.timestamp);
+
+            container.innerHTML = sortedOrders.map(order => {
+                const shortId = order.id.substring(0, 6).toUpperCase();
+                
+                let orderDatePart = ''; let orderTimePart = '';
+                if (order.date) {
+                    const parts = order.date.split(' ');
+                    orderDatePart = parts[0] || '';
+                    orderTimePart = parts[1] || '';
                 }
 
-                emptyState.style.display = 'none';
-                globalOrders.sort((a, b) => b.timestamp - a.timestamp);
-
-                container.innerHTML = globalOrders.map(order => {
-                    const shortId = order.id.substring(0, 6).toUpperCase();
-                    
-                    let orderDatePart = ''; let orderTimePart = '';
-                    if (order.date) {
-                        const parts = order.date.split(' ');
-                        orderDatePart = parts[0] || '';
-                        orderTimePart = parts[1] || '';
-                    }
-
-                    let badgeClass = 'oc-badge';
-                    let badgeText = order.status;
-                    let stepIndex = 0; 
-                    let progressWidth = '0%'; 
-                    
-                    if (order.status === 'Pendente') {
-                        badgeClass += ' outline'; badgeText = 'Aguardando Loja';
-                        progressWidth = '0%';
-                    } else if (order.status === 'Aceito') {
-                        stepIndex = 1; progressWidth = '25%';
-                    } else if (order.status === 'Em Preparo') {
-                        stepIndex = 2; progressWidth = '50%';
-                    } else if (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Retirada' || order.status === 'Aguardando Entregador') {
-                        stepIndex = 3; progressWidth = '75%';
-                    } else if (order.status === 'Entregue' || order.status === 'Concluído' || order.status === 'Concluido') {
-                        badgeText = 'Pedido finalizado'; 
-                        stepIndex = 4; progressWidth = '100%';
-                    } else if (order.status === 'Cancelado') {
-                        badgeClass = 'oc-badge outline'; badgeText = 'Cancelado'; stepIndex = -1; progressWidth = '0%';
-                    }
-
-                    const isPickup = order.orderType === 'retirada' || (order.customer && order.customer.address && order.customer.address.includes('RETIRADA'));
-
-                    // 🟢 AQUI ENTRA A LÓGICA DO BADGE DO PIX 🟢
-                    let pixBadgeHtml = '';
-                    if ((order.paymentMethod || '').toLowerCase().includes('pix')) {
-                        if (order.pixApproved === true) {
-                            pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #e6f4ea; color: #00a14b; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #badbcc;">✅ PIX Confirmado pela Loja</div>`;
-                        } else if (order.pixApproved === false) {
-                            pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #fef0f0; color: #ea1d2c; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #fbd5d5;">❌ PIX Não Aprovado - Pedido Cancelado</div>`;
-                        } else if (order.status !== 'Cancelado') {
-                            pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #fff3cd; color: #856404; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #ffeeba;">⏳ Aguardando loja confirmar o PIX</div>`;
-                        }
-                    }
-
-                    return `
-                    <div class="order-card" style="${order.status === 'Cancelado' ? 'opacity: 0.6;' : ''}">
-                        <div class="store-name">${order.storeName}</div>
-                        
-                        <div class="oc-row-1">
-                            <div class="oc-id">Pedido: <strong>#${shortId}</strong></div>
-                            <div class="${badgeClass}">${badgeText}</div>
-                            <button class="btn-details" onclick="window.openDetailsModal('${order.id}')">Ver detalhes</button>
-                        </div>
-
-                        <div class="oc-row-info">
-                            <div class="info-item">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                                R$ ${(order.total || 0).toFixed(2)}
-                            </div>
-                            <div class="info-item">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                                ${orderDatePart}
-                            </div>
-                            <div class="info-item">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                ${orderTimePart}
-                            </div>
-                        </div>
-
-                        ${pixBadgeHtml}
-
-                        <div class="progress-wrapper" style="${stepIndex === -1 ? 'display:none;' : ''}">
-                            <div class="progress-lines">
-                                <div class="progress-line-bg"></div>
-                                <div class="progress-line-fill" style="width: ${progressWidth};"></div>
-                            </div>
-                            <div class="progress-step-container">
-                                <div class="p-step">
-                                    <div class="p-dot ${stepIndex >= 0 ? 'active' : ''}"></div>
-                                    <span class="p-label ${stepIndex >= 0 ? 'active' : ''}">Pedido<br>visualizado</span>
-                                </div>
-                                <div class="p-step">
-                                    <div class="p-dot ${stepIndex >= 1 ? 'active' : ''}"></div>
-                                    <span class="p-label ${stepIndex >= 1 ? 'active' : ''}">Pedido<br>aprovado</span>
-                                </div>
-                                <div class="p-step">
-                                    <div class="p-dot ${stepIndex >= 2 ? 'active' : ''}"></div>
-                                    <span class="p-label ${stepIndex >= 2 ? 'active' : ''}">Preparando<br>Pedido</span>
-                                </div>
-                                <div class="p-step">
-                                    <div class="p-dot ${stepIndex >= 3 ? 'active' : ''}"></div>
-                                    <span class="p-label ${stepIndex >= 3 ? 'active' : ''}">${isPickup ? 'Pronto p/<br>retirar' : 'Saiu para<br>entrega'}</span>
-                                </div>
-                                <div class="p-step">
-                                    <div class="p-dot ${stepIndex >= 4 ? 'active' : ''}"></div>
-                                    <span class="p-label ${stepIndex >= 4 ? 'active' : ''}">Entregue</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                // INICIA A ESCUTA DE MENSAGENS
-                const activeOrders = globalOrders.filter(o => !['Entregue', 'Concluído', 'Concluido', 'Cancelado'].includes(o.status));
+                let badgeClass = 'oc-badge';
+                let badgeText = order.status;
+                let stepIndex = 0; 
+                let progressWidth = '0%'; 
                 
-                activeOrders.forEach(order => {
-                    if (!chatListeners[order.id]) {
-                        initialLoadMsg[order.id] = true;
-                        const qMsg = query(collection(db, "orders", order.id, "messages"), orderBy("timestamp", "asc"));
-                        chatListeners[order.id] = onSnapshot(qMsg, (msgSnapshot) => {
-                            if (initialLoadMsg[order.id]) {
-                                initialLoadMsg[order.id] = false;
-                                return; 
-                            }
-                            
-                            msgSnapshot.docChanges().forEach((change) => {
-                                if (change.type === "added") {
-                                    const msg = change.doc.data();
-                                    if (msg.sender === 'store' && currentChatOrderId !== order.id) {
-                                        window.showMsgToast(order.storeName, msg.text, order.id);
-                                        window.playMsgSound();
-                                    }
-                                }
-                            });
-                        });
+                if (order.status === 'Pendente') {
+                    badgeClass += ' outline'; badgeText = 'Aguardando Loja';
+                    progressWidth = '0%';
+                } else if (order.status === 'Aceito') {
+                    stepIndex = 1; progressWidth = '25%';
+                } else if (order.status === 'Em Preparo') {
+                    stepIndex = 2; progressWidth = '50%';
+                } else if (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Retirada' || order.status === 'Aguardando Entregador') {
+                    stepIndex = 3; progressWidth = '75%';
+                } else if (order.status === 'Entregue' || order.status === 'Concluído' || order.status === 'Concluido') {
+                    badgeText = 'Pedido finalizado'; 
+                    stepIndex = 4; progressWidth = '100%';
+                } else if (order.status === 'Cancelado') {
+                    badgeClass = 'oc-badge outline'; badgeText = 'Cancelado'; stepIndex = -1; progressWidth = '0%';
+                }
+
+                const isPickup = order.orderType === 'retirada' || (order.customer && order.customer.address && order.customer.address.includes('RETIRADA'));
+
+                let pixBadgeHtml = '';
+                if ((order.paymentMethod || '').toLowerCase().includes('pix')) {
+                    if (order.pixApproved === true) {
+                        pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #e6f4ea; color: #00a14b; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #badbcc;">✅ PIX Confirmado pela Loja</div>`;
+                    } else if (order.pixApproved === false) {
+                        pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #fef0f0; color: #ea1d2c; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #fbd5d5;">❌ PIX Não Aprovado - Pedido Cancelado</div>`;
+                    } else if (order.status !== 'Cancelado') {
+                        pixBadgeHtml = `<div style="margin-top: 10px; text-align: center; background: #fff3cd; color: #856404; padding: 6px; border-radius: 8px; font-size: 0.85rem; font-weight: bold; border: 1px solid #ffeeba;">⏳ Aguardando loja confirmar o PIX</div>`;
                     }
-                });
-            });
+                }
+
+                return `
+                <div class="order-card" style="${order.status === 'Cancelado' ? 'opacity: 0.6;' : ''}">
+                    <div class="store-name">${order.storeName}</div>
+                    
+                    <div class="oc-row-1">
+                        <div class="oc-id">Pedido: <strong>#${shortId}</strong></div>
+                        <div class="${badgeClass}">${badgeText}</div>
+                        <button class="btn-details" onclick="window.openDetailsModal('${order.id}')">Ver detalhes</button>
+                    </div>
+
+                    <div class="oc-row-info">
+                        <div class="info-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                            R$ ${(order.total || 0).toFixed(2)}
+                        </div>
+                        <div class="info-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                            ${orderDatePart}
+                        </div>
+                        <div class="info-item">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            ${orderTimePart}
+                        </div>
+                    </div>
+
+                    ${pixBadgeHtml}
+
+                    <div class="progress-wrapper" style="${stepIndex === -1 ? 'display:none;' : ''}">
+                        <div class="progress-lines">
+                            <div class="progress-line-bg"></div>
+                            <div class="progress-line-fill" style="width: ${progressWidth};"></div>
+                        </div>
+                        <div class="progress-step-container">
+                            <div class="p-step">
+                                <div class="p-dot ${stepIndex >= 0 ? 'active' : ''}"></div>
+                                <span class="p-label ${stepIndex >= 0 ? 'active' : ''}">Pedido<br>visualizado</span>
+                            </div>
+                            <div class="p-step">
+                                <div class="p-dot ${stepIndex >= 1 ? 'active' : ''}"></div>
+                                <span class="p-label ${stepIndex >= 1 ? 'active' : ''}">Pedido<br>aprovado</span>
+                            </div>
+                            <div class="p-step">
+                                <div class="p-dot ${stepIndex >= 2 ? 'active' : ''}"></div>
+                                <span class="p-label ${stepIndex >= 2 ? 'active' : ''}">Preparando<br>Pedido</span>
+                            </div>
+                            <div class="p-step">
+                                <div class="p-dot ${stepIndex >= 3 ? 'active' : ''}"></div>
+                                <span class="p-label ${stepIndex >= 3 ? 'active' : ''}">${isPickup ? 'Pronto p/<br>retirar' : 'Saiu para<br>entrega'}</span>
+                            </div>
+                            <div class="p-step">
+                                <div class="p-dot ${stepIndex >= 4 ? 'active' : ''}"></div>
+                                <span class="p-label ${stepIndex >= 4 ? 'active' : ''}">Entregue</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        const checkNewMessages = async () => {
+            const activeOrders = globalOrders.filter(o => !['Entregue', 'Concluído', 'Concluido', 'Cancelado'].includes(o.status));
+            
+            for (const order of activeOrders) {
+                const { data: messages } = await supabase
+                    .from('order_messages')
+                    .select('*')
+                    .eq('order_id', order.id)
+                    .eq('sender', 'store')
+                    .order('timestamp', { ascending: false })
+                    .limit(1);
+
+                if (messages && messages.length > 0) {
+                    const msg = messages[0];
+                    if (!processedMsgIds.has(msg.id) && currentChatOrderId !== order.id) {
+                        processedMsgIds.add(msg.id);
+                        window.showMsgToast(order.storeName, msg.text, order.id);
+                        window.playMsgSound();
+                    }
+                }
+            }
         };
 
         window.showMsgToast = (storeName, text, orderId) => {
@@ -482,7 +483,6 @@
             document.getElementById('md-discount').innerText = discount > 0 ? `- R$ ${discount.toFixed(2)}` : 'Sem cupom';
             document.getElementById('md-total').innerText = `R$ ${(order.total || 0).toFixed(2)}`;
 
-            // 🟢 AQUI ENTRA A LÓGICA DO BADGE DO PIX NO MODAL 🟢
             let pixStatusText = '';
             if ((order.paymentMethod || '').toLowerCase().includes('pix')) {
                 if (order.pixApproved === true) {
@@ -524,8 +524,14 @@
             document.getElementById('chat-order-id').innerText = '#' + shortId;
             document.getElementById('chat-modal').classList.add('active');
 
-            const qMsg = query(collection(db, "orders", currentChatOrderId, "messages"), orderBy("timestamp", "asc"));
-            chatUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+            const loadChatMessages = async () => {
+                if (!currentChatOrderId) return;
+                const { data: messages } = await supabase
+                    .from('order_messages')
+                    .select('*')
+                    .eq('order_id', currentChatOrderId)
+                    .order('timestamp', { ascending: true });
+
                 const container = document.getElementById('chat-messages-container');
                 
                 let msgsHtml = `
@@ -537,27 +543,32 @@
                     </div>
                 `;
                 
-                snapshot.forEach(doc => {
-                    const msg = doc.data();
-                    if(msg.sender === 'store') {
-                        msgsHtml += `
-                        <div class="msg-bubble msg-store">
-                            <span class="msg-sender">${order.storeName}</span>
-                            ${msg.text}
-                            <span class="msg-time">${msg.timeString}</span>
-                        </div>`;
-                    } else {
-                        msgsHtml += `
-                        <div class="msg-bubble msg-user">
-                            ${msg.text}
-                            <span class="msg-time" style="color:rgba(255,255,255,0.8);">${msg.timeString} ✔</span>
-                        </div>`;
-                    }
-                });
+                if (messages) {
+                    messages.forEach(msg => {
+                        processedMsgIds.add(msg.id); // Marca como lida
+                        if(msg.sender === 'store') {
+                            msgsHtml += `
+                            <div class="msg-bubble msg-store">
+                                <span class="msg-sender">${order.storeName}</span>
+                                ${msg.text}
+                                <span class="msg-time">${msg.timeString}</span>
+                            </div>`;
+                        } else {
+                            msgsHtml += `
+                            <div class="msg-bubble msg-user">
+                                ${msg.text}
+                                <span class="msg-time" style="color:rgba(255,255,255,0.8);">${msg.timeString} ✔</span>
+                            </div>`;
+                        }
+                    });
+                }
 
                 container.innerHTML = msgsHtml;
                 container.scrollTop = container.scrollHeight; 
-            });
+            };
+
+            loadChatMessages();
+            chatPollInterval = setInterval(loadChatMessages, 3000);
         };
 
         window.openChatFromDetails = () => {
@@ -566,7 +577,7 @@
 
         window.closeChatModal = () => {
             document.getElementById('chat-modal').classList.remove('active');
-            if(chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+            if(chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
             currentChatOrderId = null;
         };
 
@@ -582,30 +593,24 @@
             const timeString = now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
 
             try {
-                await addDoc(collection(db, "orders", currentChatOrderId, "messages"), {
+                await supabase.from('order_messages').insert([{
+                    order_id: currentChatOrderId,
                     text: text,
                     sender: 'customer',
                     timestamp: Date.now(),
                     timeString: timeString
-                });
+                }]);
             } catch(error) {
                 console.error("Erro ao enviar mensagem:", error);
                 alert("Falha ao enviar mensagem.");
             }
         });
 
-        // ==========================================
-        // 🚀 REGISTRO DO SERVICE WORKER (PWA) 🚀
-        // ==========================================
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('Service Worker registrado com sucesso:', registration.scope);
-                    })
-                    .catch((error) => {
-                        console.log('Falha ao registrar o Service Worker:', error);
-                    });
+                    .then((registration) => console.log('Service Worker registrado com sucesso.'))
+                    .catch((error) => console.log('Falha ao registrar o Service Worker:', error));
             });
         }
     </script>
