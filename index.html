@@ -239,6 +239,36 @@
         .empty-state svg { color: #ccc; margin-bottom: 15px; }
         .empty-state h3 { color: #111; font-size: 1.1rem; margin-bottom: 5px; font-weight: 800;}
     </style>
+
+    <!-- OneSignal Push Notifications — Clientes -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({ appId: "afea195c-b1d8-4a4a-9f90-6121a8e1d8c0" });
+
+            // Marca o dispositivo como "customer" para segmentação no painel OneSignal
+            OneSignal.User.addTag("role", "customer");
+
+            // Salva o player_id no perfil do cliente para envios personalizados via API
+            const playerId = await OneSignal.User.PushSubscription.id;
+            if (playerId) {
+                import('./js/supabase-client.js').then(({ supabase }) => {
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session) {
+                            supabase.from('customers')
+                                .update({ onesignal_player_id: playerId })
+                                .eq('auth_id', session.user.id)
+                                .then(({ error }) => {
+                                    if (error) console.error('OneSignal customer: failed to save player_id', error);
+                                })
+                                .catch(err => console.error('OneSignal customer: unexpected error', err));
+                        }
+                    }).catch(err => console.error('OneSignal customer: getSession failed', err));
+                }).catch(err => console.error('OneSignal customer: import failed', err));
+            }
+        });
+    </script>
 </head>
 <body>
 
