@@ -346,25 +346,41 @@
 
                 let dynamicStatus = s.status || 'Aberto';
                 if (dynamicStatus === 'Aberto' && s.schedule) {
-                    const now = new Date(); 
-                    const currentMins = now.getHours() * 60 + now.getMinutes(); 
-                    const daysMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-                    const todaySch = s.schedule[daysMap[now.getDay()]];
-                    
-                    if (!todaySch || !todaySch.active) { dynamicStatus = 'Fechado'; } 
-                    else {
-                        const [oH, oM] = (todaySch.open || '00:00').split(':').map(Number);
-                        const [cH, cM] = (todaySch.close || '23:59').split(':').map(Number);
-                        const openMins = (oH || 0) * 60 + (oM || 0); const closeMins = (cH || 0) * 60 + (cM || 0);
-                        let isOpen = (closeMins >= openMins) ? (currentMins >= openMins && currentMins <= closeMins) : (currentMins >= openMins || currentMins <= closeMins);
-                        if (!isOpen) dynamicStatus = 'Fechado';
+                    try {
+                        let scheduleObj = typeof s.schedule === 'string' ? JSON.parse(s.schedule) : s.schedule;
+                        const now = new Date(); 
+                        const currentMins = now.getHours() * 60 + now.getMinutes(); 
+                        const daysMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+                        const todaySch = scheduleObj[daysMap[now.getDay()]];
+                        
+                        if (!todaySch || !todaySch.active) { dynamicStatus = 'Fechado'; } 
+                        else {
+                            const [oH, oM] = (todaySch.open || '00:00').split(':').map(Number);
+                            const [cH, cM] = (todaySch.close || '23:59').split(':').map(Number);
+                            const openMins = (oH || 0) * 60 + (oM || 0); const closeMins = (cH || 0) * 60 + (cM || 0);
+                            let isOpen = (closeMins >= openMins) ? (currentMins >= openMins && currentMins <= closeMins) : (currentMins >= openMins || currentMins <= closeMins);
+                            if (!isOpen) dynamicStatus = 'Fechado';
+                        }
+                    } catch (e) {
+                        console.warn("Aviso ao ler horários, ignorando validação:", e);
                     }
                 }
 
                 activeStore = { id: storeIdParam, name: s.name, logo: s.logo, status: dynamicStatus };
                 
                 let isSponsorAssociated = false;
-                const loggedCustomer = JSON.parse(localStorage.getItem('loggedCustomer'));
+                
+                // Correção 1: Parse seguro do localStorage
+                let loggedCustomer = null;
+                try {
+                    const stored = localStorage.getItem('loggedCustomer');
+                    if (stored && stored !== 'undefined') {
+                        loggedCustomer = JSON.parse(stored);
+                    }
+                } catch (e) {
+                    console.warn('Erro ao ler cliente do local storage', e);
+                }
+
                 const userEmail = loggedCustomer ? loggedCustomer.email : localStorage.getItem('userEmail');
                 
                 if (userEmail) {
@@ -396,9 +412,20 @@
                     .from('products').select('*').eq('storeId', storeIdParam);
                 if (prodError) console.error('Erro ao buscar produtos:', prodError);
                 currentStoreProducts = productsData || [];
+                
                 renderFullStore(s, dynamicStatus);
 
-            } catch (error) { console.error("Erro ao carregar loja:", error); }
+            } catch (error) { 
+                console.error("Erro fatal ao carregar loja:", error); 
+                // Evitar tela em branco presa no skeleton se algo mais falhar:
+                document.getElementById('store-page-content').innerHTML = `
+                    <div style="padding: 40px; text-align: center; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ea1d2c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:15px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <h3 style="color: #333; margin-bottom: 10px;">Ops, algo deu errado!</h3>
+                        <p style="color: #777; font-size: 0.9rem;">Não foi possível carregar os dados desta loja. Tente novamente mais tarde.</p>
+                        <button onclick="window.location.href='index.html'" style="margin-top: 20px; background: #ea1d2c; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Voltar ao Início</button>
+                    </div>`;
+            }
         };
 
         window.filterProducts = (query) => {
@@ -455,7 +482,21 @@
             } else {
                 
                 let productCategories = availableProducts.map(p => p.category || 'Destaques');
-                let myCategories = storeData.categories || [];
+                
+                // Correção 2: Validação segura para evitar quebra no ".filter" caso "categories" venha como string do BD
+                let rawCats = storeData.categories;
+                let myCategories = [];
+                if (Array.isArray(rawCats)) {
+                    myCategories = rawCats;
+                } else if (typeof rawCats === 'string') {
+                    try {
+                        myCategories = JSON.parse(rawCats);
+                        if (!Array.isArray(myCategories)) myCategories = [rawCats];
+                    } catch (e) {
+                        myCategories = rawCats.split(',').map(c => c.trim());
+                    }
+                }
+                
                 let orphanCats = productCategories.filter(c => !myCategories.includes(c) && c !== 'Destaques');
                 
                 let orderedCategories = ['Destaques', ...myCategories.filter(c => c !== 'Destaques'), ...new Set(orphanCats)];
@@ -577,8 +618,12 @@
             
             let scheduleHTML = '<ul style="list-style:none; padding:0; margin:0;">';
             if(storeData.schedule) {
+                let sch = storeData.schedule;
+                if(typeof sch === 'string') {
+                    try { sch = JSON.parse(sch); } catch(e) { sch = {}; }
+                }
                 daysMapFull.forEach(day => {
-                    const s = storeData.schedule[day.id];
+                    const s = sch[day.id];
                     if(s && s.active) {
                         scheduleHTML += `<li style="display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #eee;"><span>${day.name}</span> <strong style="color:#111;">${s.open} às ${s.close}</strong></li>`;
                     } else {
