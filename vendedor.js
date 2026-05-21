@@ -1,58 +1,88 @@
 import { supabase } from './js/supabase-client.js';
 import { requireRole } from './js/auth.js';
 
-const session = await requireRole('store', 'login-vendedor.html');
-if (!session) {
-    window.location.href = 'login-vendedor.html';
+// Variável que vai guardar a loja (declarada fora para funcionar em todo o script)
+let loggedStore = null;
+
+// 🟢 MODO DE DEPURAÇÃO: Captura qualquer erro de comunicação e mostra no ecrã 🟢
+try {
+    console.log("1. A iniciar painel do vendedor...");
+    
+    const session = await requireRole('store', 'login-vendedor.html');
+    
+    if (!session || !session.user) {
+        window.location.href = 'login-vendedor.html';
+        throw new Error('A redirecionar para login...');
+    }
+
+    console.log("2. Utilizador logado. ID:", session.user.id);
+    console.log("3. A comunicar com o Supabase para buscar a loja...");
+
+    const { data: storeProfile, error: storeError } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('auth_id', session.user.id)
+        .maybeSingle();
+
+    // Se o banco de dados recusar a chamada (erro na chave, RLS, falta de coluna...)
+    if (storeError) {
+        throw new Error(`O SUPABASE REJEITOU A COMUNICAÇÃO:\n\nErro: ${storeError.message}\nDetalhes: ${storeError.details || 'Nenhum detalhe adicional.'}\nDica: Verifique se a coluna 'auth_id' existe na tabela 'stores' ou as regras de RLS.`);
+    }
+
+    // Se a chamada funcionar, mas não houver resultados
+    if (!storeProfile) {
+        throw new Error(`COMUNICAÇÃO OK, MAS LOJA NÃO ENCONTRADA!\n\nO Supabase respondeu, mas não encontrou nenhuma loja vinculada ao seu utilizador.\n\nVá à tabela 'stores' no Supabase e certifique-se de que a coluna 'auth_id' contém EXATAMENTE este código:\n\n${session.user.id}`);
+    }
+
+    loggedStore = storeProfile;
+    console.log("4. Loja carregada com sucesso:", loggedStore.name);
+
+} catch (err) {
+    console.error("ERRO FATAL:", err);
+    
+    // Se não for apenas um redirecionamento de rotina, mostra o erro visual
+    if (!err.message.includes('A redirecionar')) {
+        document.body.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#f1f5f9; color:#0f172a; text-align:center; padding:20px; font-family: 'Inter', sans-serif;">
+                <h1 style="color:#ea1d2c; font-size:2rem; margin-bottom:10px;">🛑 Falha na Comunicação com o BD</h1>
+                <p style="font-size:1.1rem; max-width:650px; margin-bottom:20px; line-height:1.5;">
+                    O painel encontrou um obstáculo ao tentar puxar os dados. Este é o erro exato que o sistema devolveu:
+                </p>
+                <div style="background:#1e293b; color:#10b981; padding:20px; border-radius:8px; text-align:left; font-family:monospace; font-size:1.1rem; width:100%; max-width:700px; white-space:pre-wrap; word-wrap:break-word; overflow-x:auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 25px;">${err.message}</div>
+                
+                <button onclick="localStorage.clear(); window.location.href='login-vendedor.html'" style="background:#ea1d2c; color:#fff; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer; font-size: 1rem; box-shadow: 0 4px 6px rgba(234, 29, 44, 0.2);">Voltar ao Login e Tentar de Novo</button>
+            </div>
+        `;
+    }
+    throw err; // Mata a execução aqui, impedindo que o resto da página quebre o ecrã
 }
 
-// 1. Busca os dados da loja (Mudado para SELECT * e maybeSingle para evitar crash de colunas)
-const { data: storeProfile, error: storeError } = await supabase
-    .from('stores')
-    .select('*')
-    .eq('auth_id', session.user.id)
-    .maybeSingle();
-
-// 2. TELA DE ERRO VISUAL SE A LOJA NÃO FOR ENCONTRADA
-if (storeError || !storeProfile) {
-    console.error("Erro Supabase:", storeError);
-    document.body.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#f1f5f9; color:#0f172a; text-align:center; padding:20px; font-family: 'Inter', sans-serif;">
-            <h1 style="color:#ea1d2c; font-size:2rem; margin-bottom:10px;">⚠️ Loja não vinculada!</h1>
-            <p style="font-size:1.1rem; max-width:550px; margin-bottom:20px; line-height:1.5;">
-                O painel travou porque o seu usuário não encontrou nenhuma loja cadastrada para ele no banco de dados.<br><br>
-                <strong>Como resolver no Supabase:</strong><br>
-                Abra a tabela <b>stores</b> e verifique se a coluna <b>auth_id</b> da sua loja está preenchida exatamente com este código abaixo:<br>
-                <code style="background:#e2e8f0; padding:10px; border-radius:6px; margin-top:15px; display:inline-block; font-weight:bold; color:#0f172a; font-size:1.1rem; border: 1px solid #cbd5e1;">${session.user.id}</code>
-            </p>
-            <button onclick="localStorage.clear(); window.location.href='login-vendedor.html'" style="background:#ea1d2c; color:#fff; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer; font-size: 1rem;">Voltar para o Login</button>
-        </div>
-    `;
-    throw new Error('Parando execução: auth_id não encontrado na tabela stores.');
-}
-
-const loggedStore = storeProfile; 
+// ============================================================================
+// O RESTO DO SEU CÓDIGO ORIGINAL COMEÇA AQUI EM BAIXO
+// ============================================================================
 
 // 🟢 LÓGICA DO ÁUDIO CUSTOMIZADO 🟢
 let customAlertSound = null;
 
-try {
-    const { data: audioSnap } = await supabase
-        .from('global_settings')
-        .select('audioData')
-        .eq('id', 'notification_audio')
-        .maybeSingle();
-    
-    if (audioSnap && audioSnap.audioData) {
-        customAlertSound = new Audio(audioSnap.audioData);
-    } else {
+(async () => {
+    try {
+        const { data: audioSnap } = await supabase
+            .from('global_settings')
+            .select('audioData')
+            .eq('id', 'notification_audio')
+            .maybeSingle();
+
+        if (audioSnap && audioSnap.audioData) {
+            customAlertSound = new Audio(audioSnap.audioData);
+        } else {
+            customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
+        }
+    } catch (e) {
         customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
     }
-} catch (e) {
-    customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
-}
+})();
 
-// Funções auxiliares para o chat
+// Funções auxiliares para o chat (evitando erros no console)
 window.playMsgSound = () => { try { new Audio('https://www.myinstants.com/media/sounds/message-tone.mp3').play().catch(()=>{}); } catch(e){} };
 window.showMsgToast = (name, text, orderId) => {
     const toast = document.getElementById('new-order-toast');
@@ -75,18 +105,19 @@ let initialLoadMsg = {};
 window.unreadCounts = {}; 
 
 let globalProducts = [];
-let myCategories = ['Destaques']; 
+let myCategories = ['Destaques']; // Apenas Destaques por padrão
 let currentEditingId = null; 
 let editorImageBase64 = ''; 
 let currentPriceType = 'simples'; 
 let editingVariants = []; 
 let editingModifiers = []; 
 
+// 🟢 VARIÁVEL PARA O FILTRO DE CATEGORIAS 🟢
 window.currentCategoryFilter = 'Todas';
 
-document.getElementById('ui-store-name').innerText = loggedStore.name || 'Minha Loja';
+document.getElementById('ui-store-name').innerText = loggedStore.name || 'Loja sem nome';
 document.getElementById('ui-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
-document.getElementById('mobile-store-name').innerText = loggedStore.name || 'Minha Loja';
+document.getElementById('mobile-store-name').innerText = loggedStore.name || 'Loja sem nome';
 document.getElementById('mobile-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
 
 window.updateStatusBtn = () => {
@@ -162,6 +193,7 @@ window.requestNotificationPermission = () => {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioContext();
         ctx.resume();
+        
         alert("Áudio e Alertas ativados com sucesso! O som tocará perfeitamente agora.");
     } catch(e) {}
     if ("Notification" in window) Notification.requestPermission();
@@ -280,18 +312,7 @@ const updateDriverIndicators = () => {
 };
 
 (async () => {
-    const { data: drivers } = await supabase
-        .from('drivers')
-        .select('id, isOnline, isActive')
-        .eq('isActive', true);
-    if (drivers) {
-        onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
-        updateDriverIndicators();
-    }
-})();
-
-supabase.channel('drivers-realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, async () => {
+    try {
         const { data: drivers } = await supabase
             .from('drivers')
             .select('id, isOnline, isActive')
@@ -300,6 +321,21 @@ supabase.channel('drivers-realtime')
             onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
             updateDriverIndicators();
         }
+    } catch(e){}
+})();
+
+supabase.channel('drivers-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, async () => {
+        try {
+            const { data: drivers } = await supabase
+                .from('drivers')
+                .select('id, isOnline, isActive')
+                .eq('isActive', true);
+            if (drivers) {
+                onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
+                updateDriverIndicators();
+            }
+        } catch(e){}
     })
     .subscribe();
 
@@ -442,18 +478,20 @@ window.callPlatformDriver = async (btnElement, orderId, orderDeliveryFee) => {
 };
 
 (async () => {
-    const { data: existingOrders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('storeId', loggedStore.id)
-        .order('timestamp', { ascending: false })
-        .limit(200);
-    if (existingOrders) {
-        globalOrders = existingOrders;
-        previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
-        window.renderOrders();
-        window.renderReports();
-    }
+    try {
+        const { data: existingOrders } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('storeId', loggedStore.id)
+            .order('timestamp', { ascending: false })
+            .limit(200);
+        if (existingOrders) {
+            globalOrders = existingOrders;
+            previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
+            window.renderOrders();
+            window.renderReports();
+        }
+    } catch(e){}
 })();
 
 supabase.channel(`store-orders-${loggedStore.id}`)
@@ -463,20 +501,22 @@ supabase.channel(`store-orders-${loggedStore.id}`)
         table: 'orders',
         filter: `storeId=eq.${loggedStore.id}`
     }, async () => {
-        const { data: updatedOrders } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('storeId', loggedStore.id)
-            .order('timestamp', { ascending: false })
-            .limit(200);
-        if (updatedOrders) {
-            globalOrders = updatedOrders;
-            const currentPendingCount = globalOrders.filter(o => o.status === 'Pendente').length;
-            if (previousOrderCount !== -1 && currentPendingCount > previousOrderCount) { triggerNewOrderAlert(); }
-            previousOrderCount = currentPendingCount;
-            window.renderOrders();
-            window.renderReports();
-        }
+        try {
+            const { data: updatedOrders } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('storeId', loggedStore.id)
+                .order('timestamp', { ascending: false })
+                .limit(200);
+            if (updatedOrders) {
+                globalOrders = updatedOrders;
+                const currentPendingCount = globalOrders.filter(o => o.status === 'Pendente').length;
+                if (previousOrderCount !== -1 && currentPendingCount > previousOrderCount) { triggerNewOrderAlert(); }
+                previousOrderCount = currentPendingCount;
+                window.renderOrders();
+                window.renderReports();
+            }
+        } catch(e){}
     })
     .subscribe();
 
@@ -692,15 +732,17 @@ function buildOrderCard(order) {
 }
 
 const loadProducts = async () => {
-    const { data: products } = await supabase
-        .from('products')
-        .select('*')
-        .eq('storeId', loggedStore.id);
-    if (products) {
-        globalProducts = products;
-        window.loadCategoriesAndProducts();
-        window.renderStock();
-    }
+    try {
+        const { data: products } = await supabase
+            .from('products')
+            .select('*')
+            .eq('storeId', loggedStore.id);
+        if (products) {
+            globalProducts = products;
+            window.loadCategoriesAndProducts();
+            window.renderStock();
+        }
+    } catch(e){}
 };
 loadProducts();
 
@@ -1736,14 +1778,16 @@ window.renderReports = () => {
 };
 
 const loadCoupons = async () => {
-    const { data: coupons } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('storeId', loggedStore.id);
-    if (coupons) {
-        globalCoupons = coupons;
-        window.renderCoupons();
-    }
+    try {
+        const { data: coupons } = await supabase
+            .from('coupons')
+            .select('*')
+            .eq('storeId', loggedStore.id);
+        if (coupons) {
+            globalCoupons = coupons;
+            window.renderCoupons();
+        }
+    } catch(e){}
 };
 loadCoupons();
 
