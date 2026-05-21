@@ -1,27 +1,59 @@
 import { supabase } from './js/supabase-client.js';
 import { requireRole } from './js/auth.js';
 
-const session = await requireRole('store', 'login-vendedor.html');
-if (!session) throw new Error('Not authenticated');
+let session;
+try {
+    session = await requireRole('store', 'login-vendedor.html');
+    if (!session) throw new Error('Not authenticated');
+} catch (error) {
+    window.location.href = 'login-vendedor.html';
+    throw error;
+}
 
-const { data: storeProfile } = await supabase
-    .from('stores')
-    .select('id, name, logo, status, schedule, deliveryFee, deliveryTime, pickupTime, minOrder, paymentMethods, pixKey, moreInfo, categories, dueDate, isActive')
-    .eq('auth_id', session.user.id)
-    .single();
+let storeProfile = null;
+try {
+    // maybeSingle() evita crash no Supabase caso retorne 0 linhas, permitindo tratar no JS
+    const { data, error } = await supabase
+        .from('stores')
+        .select('id, name, logo, status, schedule, deliveryFee, deliveryTime, pickupTime, minOrder, paymentMethods, pixKey, moreInfo, categories, dueDate, isActive')
+        .eq('auth_id', session.user.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Erro na query da loja:", error);
+    } else {
+        storeProfile = data;
+    }
+} catch (e) {
+    console.error("Erro fatal ao carregar o perfil da loja:", e);
+}
+
+// 🟢 BLOQUEIO SEGURO: Interrompe a execução caso a loja não seja encontrada
+if (!storeProfile || !storeProfile.id) {
+    alert("Sua conta não tem uma loja vinculada ou foi desativada. Verifique o auth_id no Supabase!");
+    window.location.href = 'login-vendedor.html';
+    throw new Error("Store profile not found. Halting execution."); 
+}
+
+const loggedStore = storeProfile; // Keep compatibility with all existing code that references loggedStore
 
 // 🟢 LÓGICA DO ÁUDIO CUSTOMIZADO 🟢
 let customAlertSound = null;
 
 (async () => {
-    const { data: audioSnap } = await supabase
-        .from('global_settings')
-        .select('audioData')
-        .eq('id', 'notification_audio')
-        .single();
-    if (audioSnap && audioSnap.audioData) {
-        customAlertSound = new Audio(audioSnap.audioData);
-    } else {
+    try {
+        const { data: audioSnap } = await supabase
+            .from('global_settings')
+            .select('audioData')
+            .eq('id', 'notification_audio')
+            .maybeSingle();
+
+        if (audioSnap && audioSnap.audioData) {
+            customAlertSound = new Audio(audioSnap.audioData);
+        } else {
+            customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
+        }
+    } catch (e) {
         customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
     }
 })();
@@ -58,11 +90,6 @@ let editingModifiers = [];
 
 // 🟢 VARIÁVEL PARA O FILTRO DE CATEGORIAS 🟢
 window.currentCategoryFilter = 'Todas';
-
-if (!storeProfile || !storeProfile.id) {
-    window.location.href = 'login-vendedor.html';
-}
-const loggedStore = storeProfile; // Keep compatibility with all existing code that references loggedStore
 
 document.getElementById('ui-store-name').innerText = loggedStore.name;
 document.getElementById('ui-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
@@ -265,13 +292,17 @@ const updateDriverIndicators = () => {
 
 // Load initial driver count
 (async () => {
-    const { data: drivers } = await supabase
-        .from('drivers')
-        .select('id, isOnline, isActive')
-        .eq('isActive', true);
-    if (drivers) {
-        onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
-        updateDriverIndicators();
+    try {
+        const { data: drivers } = await supabase
+            .from('drivers')
+            .select('id, isOnline, isActive')
+            .eq('isActive', true);
+        if (drivers) {
+            onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
+            updateDriverIndicators();
+        }
+    } catch (e) {
+        console.error("Erro ao carregar entregadores:", e);
     }
 })();
 
@@ -429,17 +460,21 @@ window.callPlatformDriver = async (btnElement, orderId, orderDeliveryFee) => {
 
 // Load existing orders and subscribe to realtime changes
 (async () => {
-    const { data: existingOrders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('storeId', loggedStore.id)
-        .order('timestamp', { ascending: false })
-        .limit(200);
-    if (existingOrders) {
-        globalOrders = existingOrders;
-        previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
-        window.renderOrders();
-        window.renderReports();
+    try {
+        const { data: existingOrders } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('storeId', loggedStore.id)
+            .order('timestamp', { ascending: false })
+            .limit(200);
+        if (existingOrders) {
+            globalOrders = existingOrders;
+            previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
+            window.renderOrders();
+            window.renderReports();
+        }
+    } catch(e) {
+        console.error("Erro ao carregar pedidos:", e);
     }
 })();
 
@@ -682,14 +717,18 @@ function buildOrderCard(order) {
 
 // Load products and subscribe to realtime changes
 const loadProducts = async () => {
-    const { data: products } = await supabase
-        .from('products')
-        .select('*')
-        .eq('storeId', loggedStore.id);
-    if (products) {
-        globalProducts = products;
-        window.loadCategoriesAndProducts();
-        window.renderStock();
+    try {
+        const { data: products } = await supabase
+            .from('products')
+            .select('*')
+            .eq('storeId', loggedStore.id);
+        if (products) {
+            globalProducts = products;
+            window.loadCategoriesAndProducts();
+            window.renderStock();
+        }
+    } catch(e) {
+        console.error("Erro ao carregar produtos:", e);
     }
 };
 loadProducts();
@@ -904,7 +943,6 @@ window.deleteCategory = async (catName) => {
     }
 };
 
-// 🟢 FUNÇÃO DE EDITAR CATEGORIA 🟢
 window.editCategory = async (oldName) => {
     const newName = prompt(`Digite o novo nome para a categoria "${oldName}":`, oldName);
     if (newName && newName.trim() !== "" && newName.trim() !== oldName) {
@@ -948,7 +986,6 @@ window.editCategory = async (oldName) => {
     }
 };
 
-// 🟢 FUNÇÃO DE ATUALIZAR CATEGORIA NO FILTRO 🟢
 window.setCategoryFilter = (catName) => {
     window.currentCategoryFilter = catName;
     window.loadCategoriesAndProducts();
@@ -962,13 +999,10 @@ window.loadCategoriesAndProducts = () => {
     container.innerHTML = ''; catSelect.innerHTML = ''; tabsContainer.innerHTML = '';
 
     let productCategories = globalProducts.map(p => p.category || 'Destaques');
-    // Encontrar categorias de produtos que por algum motivo não estão em myCategories
     let orphanCats = productCategories.filter(c => !myCategories.includes(c) && c !== 'Destaques');
     
-    // O array baseia-se na ordem estrita definida por myCategories. 'Destaques' fica sempre fixo no topo.
     let allUniqueCategories = ['Destaques', ...myCategories.filter(c => c !== 'Destaques'), ...new Set(orphanCats)];
 
-    // RENDERIZAÇÃO DAS ABAS (TABS) FILTRO
     let tabsHTML = `<div class="list-tab ${window.currentCategoryFilter === 'Todas' ? 'active' : ''}" onclick="window.setCategoryFilter('Todas')">Todas</div>`;
     allUniqueCategories.forEach(catName => {
         tabsHTML += `<div class="list-tab ${window.currentCategoryFilter === catName ? 'active' : ''}" onclick="window.setCategoryFilter('${catName}')">${catName}</div>`;
@@ -976,7 +1010,6 @@ window.loadCategoriesAndProducts = () => {
     });
     tabsContainer.innerHTML = tabsHTML;
 
-    // ORDENAR OS PRODUTOS PELO CAMPO 'order'
     let sortedProducts = [...globalProducts].sort((a, b) => {
         let orderA = a.order !== undefined ? a.order : 9999;
         let orderB = b.order !== undefined ? b.order : 9999;
@@ -988,7 +1021,6 @@ window.loadCategoriesAndProducts = () => {
 
         const prodsInCat = sortedProducts.filter(p => (p.category || 'Destaques') === catName);
         
-        // Botões de ação para a categoria (Excluir, Editar e Ícone de arrastar)
         const deleteBtnHTML = (catName !== 'Destaques') ? `<button class="btn-del-cat" title="Excluir Categoria" onclick="window.deleteCategory('${catName}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>` : '';
         const editBtnHTML = (catName !== 'Destaques') ? `<button class="btn-del-cat" style="color: #2563eb;" title="Editar Categoria" onclick="window.editCategory('${catName}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>` : '';
         const dragHandleHTML = (catName !== 'Destaques') ? `<span class="drag-handle" style="cursor: grab; margin-right: 10px; color: #cbd5e1; font-size: 1.2rem;" title="Arraste para reordenar a categoria">⋮⋮</span>` : '';
@@ -1040,7 +1072,6 @@ window.loadCategoriesAndProducts = () => {
     });
 };
 
-// 🟢 LÓGICA DE ARRASTAR E SOLTAR (DRAG & DROP) CATEGORIAS 🟢
 let draggedCatName = null;
 
 window.dragStartCat = (e, catName) => {
@@ -1092,7 +1123,6 @@ window.dropCat = async (e, targetCat) => {
         return;
     }
 
-    // Reordenar no array de categorias
     const draggedIndex = myCategories.indexOf(draggedCatName);
     let targetIndex = myCategories.indexOf(targetCat);
     
@@ -1106,7 +1136,6 @@ window.dropCat = async (e, targetCat) => {
             myCategories.splice(targetIndex, 0, draggedCatName);
         }
         
-        // Salvar ordem no banco
         try {
             await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id);
         } catch(err) {
@@ -1119,12 +1148,11 @@ window.dropCat = async (e, targetCat) => {
     draggedCatName = null;
 };
 
-// 🟢 LÓGICA DE ARRASTAR E SOLTAR (DRAG & DROP) PRODUTOS 🟢
 let draggedProdId = null;
 let draggedFromCat = null;
 
 window.dragStartProd = (e, id, cat) => {
-    e.stopPropagation(); // Evita que arraste a categoria inteira junto
+    e.stopPropagation(); 
     draggedProdId = id;
     draggedFromCat = cat;
     e.dataTransfer.effectAllowed = 'move';
@@ -1224,7 +1252,6 @@ document.addEventListener('dragend', (e) => {
         e.target.style.borderTop = '';
     }
 });
-// 🟢 FIM DRAG & DROP 🟢
 
 window.clearEditor = () => {
     currentEditingId = null; document.getElementById('ed-name').value = ''; document.getElementById('ed-desc').value = '';
@@ -1399,7 +1426,6 @@ window.renderModifiersScreen = () => {
     });
 };
 
-// 🟢 NOVA LÓGICA DE RELATÓRIOS E MÉTRICAS FUNCIONAL 🟢
 window.currentSalesTab = 'total';
 window.chartData = null;
 
@@ -1750,13 +1776,17 @@ window.renderReports = () => {
 
 // 🟢 LÓGICA DE GESTÃO DE CUPONS 🟢
 const loadCoupons = async () => {
-    const { data: coupons } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('storeId', loggedStore.id);
-    if (coupons) {
-        globalCoupons = coupons;
-        window.renderCoupons();
+    try {
+        const { data: coupons } = await supabase
+            .from('coupons')
+            .select('*')
+            .eq('storeId', loggedStore.id);
+        if (coupons) {
+            globalCoupons = coupons;
+            window.renderCoupons();
+        }
+    } catch(e) {
+        console.error("Erro ao carregar cupons:", e);
     }
 };
 loadCoupons();
