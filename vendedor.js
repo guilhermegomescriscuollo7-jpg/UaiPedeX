@@ -1,64 +1,58 @@
 import { supabase } from './js/supabase-client.js';
 import { requireRole } from './js/auth.js';
 
-let session;
-try {
-    session = await requireRole('store', 'login-vendedor.html');
-    if (!session) throw new Error('Not authenticated');
-} catch (error) {
+const session = await requireRole('store', 'login-vendedor.html');
+if (!session) {
     window.location.href = 'login-vendedor.html';
-    throw error;
 }
 
-let storeProfile = null;
-try {
-    // maybeSingle() evita crash no Supabase caso retorne 0 linhas, permitindo tratar no JS
-    const { data, error } = await supabase
-        .from('stores')
-        .select('id, name, logo, status, schedule, deliveryFee, deliveryTime, pickupTime, minOrder, paymentMethods, pixKey, moreInfo, categories, dueDate, isActive')
-        .eq('auth_id', session.user.id)
-        .maybeSingle();
+// 1. Busca os dados da loja (Mudado para SELECT * e maybeSingle para evitar crash de colunas)
+const { data: storeProfile, error: storeError } = await supabase
+    .from('stores')
+    .select('*')
+    .eq('auth_id', session.user.id)
+    .maybeSingle();
 
-    if (error) {
-        console.error("Erro na query da loja:", error);
-    } else {
-        storeProfile = data;
-    }
-} catch (e) {
-    console.error("Erro fatal ao carregar o perfil da loja:", e);
+// 2. TELA DE ERRO VISUAL SE A LOJA NÃO FOR ENCONTRADA
+if (storeError || !storeProfile) {
+    console.error("Erro Supabase:", storeError);
+    document.body.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#f1f5f9; color:#0f172a; text-align:center; padding:20px; font-family: 'Inter', sans-serif;">
+            <h1 style="color:#ea1d2c; font-size:2rem; margin-bottom:10px;">⚠️ Loja não vinculada!</h1>
+            <p style="font-size:1.1rem; max-width:550px; margin-bottom:20px; line-height:1.5;">
+                O painel travou porque o seu usuário não encontrou nenhuma loja cadastrada para ele no banco de dados.<br><br>
+                <strong>Como resolver no Supabase:</strong><br>
+                Abra a tabela <b>stores</b> e verifique se a coluna <b>auth_id</b> da sua loja está preenchida exatamente com este código abaixo:<br>
+                <code style="background:#e2e8f0; padding:10px; border-radius:6px; margin-top:15px; display:inline-block; font-weight:bold; color:#0f172a; font-size:1.1rem; border: 1px solid #cbd5e1;">${session.user.id}</code>
+            </p>
+            <button onclick="localStorage.clear(); window.location.href='login-vendedor.html'" style="background:#ea1d2c; color:#fff; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer; font-size: 1rem;">Voltar para o Login</button>
+        </div>
+    `;
+    throw new Error('Parando execução: auth_id não encontrado na tabela stores.');
 }
 
-// 🟢 BLOQUEIO SEGURO: Interrompe a execução caso a loja não seja encontrada
-if (!storeProfile || !storeProfile.id) {
-    alert("Sua conta não tem uma loja vinculada ou foi desativada. Verifique o auth_id no Supabase!");
-    window.location.href = 'login-vendedor.html';
-    throw new Error("Store profile not found. Halting execution."); 
-}
-
-const loggedStore = storeProfile; // Keep compatibility with all existing code that references loggedStore
+const loggedStore = storeProfile; 
 
 // 🟢 LÓGICA DO ÁUDIO CUSTOMIZADO 🟢
 let customAlertSound = null;
 
-(async () => {
-    try {
-        const { data: audioSnap } = await supabase
-            .from('global_settings')
-            .select('audioData')
-            .eq('id', 'notification_audio')
-            .maybeSingle();
-
-        if (audioSnap && audioSnap.audioData) {
-            customAlertSound = new Audio(audioSnap.audioData);
-        } else {
-            customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
-        }
-    } catch (e) {
+try {
+    const { data: audioSnap } = await supabase
+        .from('global_settings')
+        .select('audioData')
+        .eq('id', 'notification_audio')
+        .maybeSingle();
+    
+    if (audioSnap && audioSnap.audioData) {
+        customAlertSound = new Audio(audioSnap.audioData);
+    } else {
         customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
     }
-})();
+} catch (e) {
+    customAlertSound = new Audio('https://www.myinstants.com/media/sounds/cash-register-purchase.mp3');
+}
 
-// Funções auxiliares para o chat (evitando erros no console)
+// Funções auxiliares para o chat
 window.playMsgSound = () => { try { new Audio('https://www.myinstants.com/media/sounds/message-tone.mp3').play().catch(()=>{}); } catch(e){} };
 window.showMsgToast = (name, text, orderId) => {
     const toast = document.getElementById('new-order-toast');
@@ -81,19 +75,18 @@ let initialLoadMsg = {};
 window.unreadCounts = {}; 
 
 let globalProducts = [];
-let myCategories = ['Destaques']; // Apenas Destaques por padrão
+let myCategories = ['Destaques']; 
 let currentEditingId = null; 
 let editorImageBase64 = ''; 
 let currentPriceType = 'simples'; 
 let editingVariants = []; 
 let editingModifiers = []; 
 
-// 🟢 VARIÁVEL PARA O FILTRO DE CATEGORIAS 🟢
 window.currentCategoryFilter = 'Todas';
 
-document.getElementById('ui-store-name').innerText = loggedStore.name;
+document.getElementById('ui-store-name').innerText = loggedStore.name || 'Minha Loja';
 document.getElementById('ui-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
-document.getElementById('mobile-store-name').innerText = loggedStore.name;
+document.getElementById('mobile-store-name').innerText = loggedStore.name || 'Minha Loja';
 document.getElementById('mobile-store-logo').src = loggedStore.logo || 'https://via.placeholder.com/80';
 
 window.updateStatusBtn = () => {
@@ -169,7 +162,6 @@ window.requestNotificationPermission = () => {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioContext();
         ctx.resume();
-        
         alert("Áudio e Alertas ativados com sucesso! O som tocará perfeitamente agora.");
     } catch(e) {}
     if ("Notification" in window) Notification.requestPermission();
@@ -215,7 +207,6 @@ window.logoutStore = () => {
     }
 };
 
-// Load store config on init and subscribe to realtime changes
 const applyStoreData = (data) => {
     loggedStore.schedule = data.schedule || null;
     loggedStore.status = data.status || 'Aberto';
@@ -256,10 +247,8 @@ const applyStoreData = (data) => {
     }
 };
 
-// Initial load from storeProfile
-applyStoreData(storeProfile);
+applyStoreData(loggedStore);
 
-// Subscribe to realtime store changes
 supabase.channel(`store-config-${loggedStore.id}`)
     .on('postgres_changes', {
         event: 'UPDATE',
@@ -290,23 +279,17 @@ const updateDriverIndicators = () => {
     window.renderOrders();
 };
 
-// Load initial driver count
 (async () => {
-    try {
-        const { data: drivers } = await supabase
-            .from('drivers')
-            .select('id, isOnline, isActive')
-            .eq('isActive', true);
-        if (drivers) {
-            onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
-            updateDriverIndicators();
-        }
-    } catch (e) {
-        console.error("Erro ao carregar entregadores:", e);
+    const { data: drivers } = await supabase
+        .from('drivers')
+        .select('id, isOnline, isActive')
+        .eq('isActive', true);
+    if (drivers) {
+        onlineDriversCount = drivers.filter(d => d.isOnline === true || d.isOnline === 'true').length;
+        updateDriverIndicators();
     }
 })();
 
-// Subscribe to driver changes
 supabase.channel('drivers-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, async () => {
         const { data: drivers } = await supabase
@@ -458,23 +441,18 @@ window.callPlatformDriver = async (btnElement, orderId, orderDeliveryFee) => {
     }
 };
 
-// Load existing orders and subscribe to realtime changes
 (async () => {
-    try {
-        const { data: existingOrders } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('storeId', loggedStore.id)
-            .order('timestamp', { ascending: false })
-            .limit(200);
-        if (existingOrders) {
-            globalOrders = existingOrders;
-            previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
-            window.renderOrders();
-            window.renderReports();
-        }
-    } catch(e) {
-        console.error("Erro ao carregar pedidos:", e);
+    const { data: existingOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('storeId', loggedStore.id)
+        .order('timestamp', { ascending: false })
+        .limit(200);
+    if (existingOrders) {
+        globalOrders = existingOrders;
+        previousOrderCount = globalOrders.filter(o => o.status === 'Pendente').length;
+        window.renderOrders();
+        window.renderReports();
     }
 })();
 
@@ -485,7 +463,6 @@ supabase.channel(`store-orders-${loggedStore.id}`)
         table: 'orders',
         filter: `storeId=eq.${loggedStore.id}`
     }, async () => {
-        // Reload all orders on any change
         const { data: updatedOrders } = await supabase
             .from('orders')
             .select('*')
@@ -549,7 +526,6 @@ window.renderOrders = () => {
         if (!chatListeners[order.id]) {
             initialLoadMsg[order.id] = true;
 
-            // Load initial unread count
             supabase
                 .from('order_messages')
                 .select('id, sender, read')
@@ -715,20 +691,15 @@ function buildOrderCard(order) {
     return `<div class="order-card" ${isPickup ? 'style="border-left: 5px solid var(--warning);"' : ''}><div class="order-header"><div style="display:flex; flex-direction:column;"><span class="order-id">#${shortId} ${orderTypeBadge}</span><div style="margin-top:5px;">${sellerBadge}</div></div><div class="order-time" style="font-size:0.8rem; color:var(--text-muted); text-align: right; display: flex; flex-direction: column; gap: 4px;"><strong style="color: var(--text-dark);">${orderDatePart}</strong><span style="font-weight:600;">${orderTimePart}</span></div></div><div class="customer-info"><strong style="display:flex; align-items:center; gap:8px; font-size:1.05rem;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${order.customerName}</strong>${addressHtml}${chatBtn}</div><ul class="order-items" style="list-style:none; padding:0;">${itemsList}</ul>${paymentBadge}${discountHtml}<div class="order-total">R$ ${(order.total || 0).toFixed(2)}</div>${pixApprovalHtml}${actionBtn}</div>`;
 }
 
-// Load products and subscribe to realtime changes
 const loadProducts = async () => {
-    try {
-        const { data: products } = await supabase
-            .from('products')
-            .select('*')
-            .eq('storeId', loggedStore.id);
-        if (products) {
-            globalProducts = products;
-            window.loadCategoriesAndProducts();
-            window.renderStock();
-        }
-    } catch(e) {
-        console.error("Erro ao carregar produtos:", e);
+    const { data: products } = await supabase
+        .from('products')
+        .select('*')
+        .eq('storeId', loggedStore.id);
+    if (products) {
+        globalProducts = products;
+        window.loadCategoriesAndProducts();
+        window.renderStock();
     }
 };
 loadProducts();
@@ -957,20 +928,16 @@ window.editCategory = async (oldName) => {
             myCategories[index] = cleanName;
             
             try {
-                // Atualiza o array de categorias na loja
                 await supabase.from('stores').update({ categories: myCategories }).eq('id', loggedStore.id);
 
-                // Atualiza todos os produtos desta categoria
                 const productsToUpdate = globalProducts.filter(p => p.category === oldName);
                 const batchPromises = productsToUpdate.map(p => supabase.from('products').update({ category: cleanName }).eq('id', p.id).eq('storeId', loggedStore.id));
                 await Promise.all(batchPromises);
 
-                // Atualiza o filtro se estiver ativo
                 if (window.currentCategoryFilter === oldName) {
                     window.currentCategoryFilter = cleanName;
                 }
 
-                // Atualiza o select do editor se necessário
                 if (document.getElementById('ed-category') && document.getElementById('ed-category').value === oldName) {
                     document.getElementById('ed-category').value = cleanName;
                 }
@@ -1589,7 +1556,7 @@ window.renderReports = () => {
             prevStartTime = startTime - (180 * 86400000);
             prevEndTime = startTime;
         } else {
-            startTime = 0; // todos
+            startTime = 0; 
             prevStartTime = 0;
             prevEndTime = 0;
         }
@@ -1603,7 +1570,6 @@ window.renderReports = () => {
     });
     const prevOrders = validOrders.filter(o => o.timestamp >= prevStartTime && o.timestamp < prevEndTime);
 
-    // 1. Cálculos de Vendas Gerais
     let totalRevenue = 0, prevRevenue = 0;
     currentOrders.forEach(o => totalRevenue += (o.total || 0));
     prevOrders.forEach(o => prevRevenue += (o.total || 0));
@@ -1645,7 +1611,6 @@ window.renderReports = () => {
     document.getElementById('ifd-trend-vendas-ticket').innerHTML = calcTrendHtml(avgTicket, prevAvgTicket);
     document.getElementById('ifd-trend-vendas-novos').innerHTML = calcTrendHtml(newCustomers, prevNewCustomers);
 
-    // 2. Extrapolação de Funil
     const baseO = totalOrders;
     const revisao = Math.floor(baseO * 1.34);
     const sacola = Math.floor(baseO * 1.85);
@@ -1676,7 +1641,6 @@ window.renderReports = () => {
     document.getElementById('ifd-pct-sacola').innerHTML = `${getPct(sacola, visitas)}`;
     document.getElementById('ifd-pct-visu').innerHTML = `${getPct(visu, visitas)}`;
 
-    // 3. Gerar Dados do Gráfico de Linhas (Vendas por Data)
     const daysRange = filterValue === 'hoje' || filterValue === 'data' ? 1 : (filterValue === '7dias' ? 7 : (filterValue === 'mes' ? 30 : 6));
     
     window.chartData = { labels: [], curr: { total:[], valor:[], ticket:[], novos:[] }, prev: { total:[], valor:[], ticket:[], novos:[] } };
@@ -1729,7 +1693,6 @@ window.renderReports = () => {
 
     window.renderSalesChart();
 
-    // 4. Pagamentos (Barras Horizontais)
     const paymentSales = {};
     currentOrders.forEach(o => { const pay = o.paymentMethod || 'Outros'; paymentSales[pay] = (paymentSales[pay] || 0) + 1; });
     const topPayments = Object.entries(paymentSales).sort((a, b) => b[1] - a[1]);
@@ -1744,7 +1707,6 @@ window.renderReports = () => {
     }).join('');
     document.getElementById('ifd-pagamentos-list').innerHTML = paymentsHtml || '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; font-weight:600;">Sem dados no período</div>';
 
-    // 5. Dias com Mais Vendas (Barras Verticais)
     const daysMapName = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const daysSales = { 'Terça':0, 'Quarta':0, 'Quinta':0, 'Sexta':0, 'Sábado':0, 'Domingo':0, 'Segunda':0 };
     currentOrders.forEach(o => { const dayName = daysMapName[new Date(o.timestamp).getDay()]; daysSales[dayName] = (daysSales[dayName] || 0) + 1; });
@@ -1769,24 +1731,18 @@ window.renderReports = () => {
     document.getElementById('ifd-dias-list').innerHTML = diasHtml;
     document.getElementById('ifd-melhor-dia').innerHTML = `${bestDayStr} <span style="font-size:0.9rem; color:var(--text-muted); font-weight:600;">${bestDayVal} vendas</span>`;
 
-    // 6. Horários de Pico (Barras Horizontais)
     window.currentFilteredOrders = currentOrders;
     window.renderPeakHours();
 };
 
-// 🟢 LÓGICA DE GESTÃO DE CUPONS 🟢
 const loadCoupons = async () => {
-    try {
-        const { data: coupons } = await supabase
-            .from('coupons')
-            .select('*')
-            .eq('storeId', loggedStore.id);
-        if (coupons) {
-            globalCoupons = coupons;
-            window.renderCoupons();
-        }
-    } catch(e) {
-        console.error("Erro ao carregar cupons:", e);
+    const { data: coupons } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('storeId', loggedStore.id);
+    if (coupons) {
+        globalCoupons = coupons;
+        window.renderCoupons();
     }
 };
 loadCoupons();
@@ -1898,14 +1854,12 @@ window.deleteCoupon = async (id) => {
     }
 };
 
-// 🟢 LÓGICA DO CHAT DA LOJA 🟢
 window.openChatModal = (orderId, customerName) => {
     currentChatOrderId = orderId;
     document.getElementById('chat-customer-name').innerText = customerName;
     document.getElementById('chat-order-id').innerText = '#' + orderId.substring(0, 6).toUpperCase();
     document.getElementById('chat-modal').classList.add('active');
     
-    // Zera o contador de mensagens não lidas no painel
     window.unreadCounts[orderId] = 0;
     const badge = document.getElementById(`badge-${orderId}`);
     if (badge) badge.style.display = 'none';
@@ -1913,7 +1867,6 @@ window.openChatModal = (orderId, customerName) => {
     const container = document.getElementById('chat-messages-container');
     container.innerHTML = '<div class="chat-sys-msg">Carregando mensagens...</div>';
 
-    // Cancela a escuta de outro chat, se houver um aberto anteriormente
     if (chatUnsubscribe) { chatUnsubscribe.unsubscribe(); chatUnsubscribe = null; }
 
     const renderChatMessages = async () => {
@@ -1959,7 +1912,6 @@ window.openChatModal = (orderId, customerName) => {
 
     await renderChatMessages();
 
-    // Subscribe to new messages in this order
     chatUnsubscribe = supabase.channel(`chat-modal-${orderId}`)
         .on('postgres_changes', {
             event: 'INSERT',
@@ -1981,7 +1933,6 @@ window.closeChatModal = () => {
     }
 };
 
-// Escuta o envio do formulário do chat
 document.getElementById('chat-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = document.getElementById('chat-input');
@@ -1989,7 +1940,7 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
     
     if (!text || !currentChatOrderId) return;
     
-    input.value = ''; // Limpa a caixa de texto
+    input.value = ''; 
     
     try {
         const { error } = await supabase.from('order_messages').insert([{
